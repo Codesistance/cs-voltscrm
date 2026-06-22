@@ -5,8 +5,9 @@ import { ErrorState } from '@/shared/components/ErrorState'
 import { LoadingState } from '@/shared/components/LoadingState'
 import { Money } from '@/shared/components/Money'
 import { useAuth } from '@/features/auth/AuthContext'
-import { hasOutstandingBalance, PayInvoiceDialog } from '../components/PayInvoiceDialog'
+import { PayInvoiceDialog } from '../components/PayInvoiceDialog'
 import { usePortalSummary } from '../api/queries'
+import { hasOutstandingBalance } from '../api/types'
 
 export function PortalHomePage() {
   const { user } = useAuth()

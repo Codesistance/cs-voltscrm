@@ -1,4 +1,4 @@
-name: Deploy UI
+name: Frontend
 
 on:
   push:
@@ -6,20 +6,59 @@ on:
     paths:
       - "src/frontend/web/**"
       - ".github/workflows/deploy-ui.yml"
+  pull_request:
+    paths:
+      - "src/frontend/web/**"
+      - ".github/workflows/deploy-ui.yml"
   workflow_dispatch:
 
 # AWS auth uses OIDC to assume the codesistance-github-terraform role (id-token permission below).
-# Required repo config: vars.TF_BACKEND_BUCKET, vars.TF_BACKEND_DYNAMODB_TABLE
+# The state backend is created by the deploy-infrastructure workflow; here we only read outputs.
 permissions:
   id-token: write
   contents: read
 
 env:
   AWS_REGION: eu-west-1
+  TF_STATE_BUCKET: voltscrm-tfstate-776051123142
+  TF_LOCK_TABLE: voltscrm-tfstate-lock
 
 jobs:
-  ui:
-    name: Build & sync SPA
+  # ── CI: always runs (push, PR, dispatch) ───────────────────────────────────────
+  build:
+    name: Build & lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: src/frontend/web
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: src/frontend/web/package-lock.json
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+      # Hand the build to the deploy job so it isn't rebuilt (main only).
+      - name: Upload SPA build
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: spa-dist
+          path: src/frontend/web/dist
+          retention-days: 1
+
+  # ── CD: deploy only on main, after build passes ────────────────────────────────
+  deploy:
+    name: Deploy SPA
+    needs: build
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -33,6 +72,12 @@ jobs:
           role-to-assume: arn:aws:iam::776051123142:role/codesistance-github-terraform
           aws-region: ${{ env.AWS_REGION }}
 
+      - name: Download SPA build
+        uses: actions/download-artifact@v4
+        with:
+          name: spa-dist
+          path: src/frontend/web/dist
+
       # ── Read resource names from Terraform state (read-only, no apply) ─────────
       - uses: hashicorp/setup-terraform@v4
         with:
@@ -42,23 +87,14 @@ jobs:
         working-directory: infrastructure/deployment
         run: |
           terraform init \
-            -backend-config="bucket=${{ vars.TF_BACKEND_BUCKET }}" \
-            -backend-config="dynamodb_table=${{ vars.TF_BACKEND_DYNAMODB_TABLE }}" \
-            -backend-config="region=${{ env.AWS_REGION }}"
+            -backend-config="bucket=${TF_STATE_BUCKET}" \
+            -backend-config="dynamodb_table=${TF_LOCK_TABLE}" \
+            -backend-config="region=${AWS_REGION}"
 
-      # ── Build & deploy the SPA ─────────────────────────────────────────────────
-      - name: Setup Node
-        uses: actions/setup-node@v6
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: src/frontend/web/package-lock.json
-
-      - name: Build & sync SPA
+      - name: Sync SPA to S3 & invalidate CloudFront
         working-directory: infrastructure/deployment
         run: |
           SPA_BUCKET=$(terraform output -raw spa_bucket)
           DIST_ID=$(terraform output -raw cloudfront_distribution_id)
-          ( cd "$GITHUB_WORKSPACE/src/frontend/web" && npm ci && npm run build )
           aws s3 sync "$GITHUB_WORKSPACE/src/frontend/web/dist/" "s3://$SPA_BUCKET/" --delete
           aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"

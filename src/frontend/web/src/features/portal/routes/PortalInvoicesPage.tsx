@@ -6,10 +6,10 @@ import { Money } from '@/shared/components/Money'
 import { PageHeader } from '@/shared/components/PageHeader'
 import { StatusPill } from '@/shared/components/StatusPill'
 import { formatDate } from '@/shared/lib/format'
-import { hasOutstandingBalance, PayInvoiceDialog } from '../components/PayInvoiceDialog'
+import { PayInvoiceDialog } from '../components/PayInvoiceDialog'
 import { usePortalInvoices } from '../api/queries'
 import type { PortalInvoice } from '../api/types'
-import { formatPortalInvoicePeriod } from '../api/types'
+import { formatPortalInvoicePeriod, hasOutstandingBalance } from '../api/types'
 
 export function PortalInvoicesPage() {
   const { data, isLoading, isError, error, refetch } = usePortalInvoices()

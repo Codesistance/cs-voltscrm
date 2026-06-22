@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Pencil } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
@@ -97,7 +97,7 @@ export function PaymentGatewaySettingsPage() {
       )}
 
       {editing && (
-        <EditGatewayDialog gateway={editing} onClose={() => setEditing(null)} />
+        <EditGatewayDialog key={editing.keyName} gateway={editing} onClose={() => setEditing(null)} />
       )}
     </div>
   )
@@ -149,13 +149,10 @@ function EditGatewayDialog({
   onClose: () => void
 }) {
   const upsertMut = useUpsertPaymentGateway()
+  // Seeded once on mount; the parent passes key={gateway.keyName}, so switching gateways
+  // remounts this dialog with fresh state rather than syncing via an effect.
   const [displayName, setDisplayName] = useState(gateway.displayName)
   const [data, setData] = useState<Record<string, string>>({ ...gateway.data })
-
-  useEffect(() => {
-    setDisplayName(gateway.displayName)
-    setData({ ...gateway.data })
-  }, [gateway])
 
   const dataKeys = Object.keys(data).sort()
 

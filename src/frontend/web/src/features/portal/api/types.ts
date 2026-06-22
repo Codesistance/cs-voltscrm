@@ -66,3 +66,7 @@ export type PortalSubscriptionsPage = Paginated<PortalSubscription>
 export function formatPortalInvoicePeriod(year: number, month: number) {
   return `${year}-${String(month).padStart(2, '0')}`
 }
+
+export function hasOutstandingBalance(balance: Money | undefined) {
+  return (balance?.amount ?? 0) > 0
+}

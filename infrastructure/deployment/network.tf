@@ -11,10 +11,10 @@ resource "aws_internet_gateway" "main" {
 # ── Public subnets (ALB, NAT gateways) ───────────────────────────────────────
 
 resource "aws_subnet" "public" {
-  count             = local.az_count
-  vpc_id            = aws_vpc.main.id
-  cidr_block        = cidrsubnet(var.vpc_cidr, 8, count.index)
-  availability_zone = local.azs[count.index]
+  count                   = local.az_count
+  vpc_id                  = aws_vpc.main.id
+  cidr_block              = cidrsubnet(var.vpc_cidr, 8, count.index)
+  availability_zone       = local.azs[count.index]
   map_public_ip_on_launch = true
 }
 

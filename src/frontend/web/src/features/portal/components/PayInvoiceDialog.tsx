@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import {
@@ -32,7 +32,10 @@ export function PayInvoiceDialog({
 }) {
   const { data: gateways, isLoading: gatewaysLoading } = usePortalGateways()
   const payMut = usePayInvoice()
-  const [gatewayKey, setGatewayKey] = useState('')
+  const [selectedKey, setSelectedKey] = useState('')
+
+  // Derived selection: the explicit choice, or auto-select when there's exactly one gateway.
+  const gatewayKey = selectedKey || (gateways?.length === 1 ? gateways[0].keyName : '')
 
   const payAmount = invoice?.balance ?? amount
   const dialogTitle =
@@ -41,15 +44,10 @@ export function PayInvoiceDialog({
       ? `Pay invoice ${formatPortalInvoicePeriod(invoice.periodYear, invoice.periodMonth)}`
       : 'Pay outstanding balance')
 
-  useEffect(() => {
-    if (!open) {
-      setGatewayKey('')
-      return
-    }
-    if (gateways?.length === 1) {
-      setGatewayKey(gateways[0].keyName)
-    }
-  }, [open, gateways])
+  const handleOpenChange = (next: boolean) => {
+    if (!next) setSelectedKey('')
+    onOpenChange(next)
+  }
 
   const handlePay = async () => {
     if (!gatewayKey || !payAmount) return
@@ -71,7 +69,7 @@ export function PayInvoiceDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>{dialogTitle}</DialogTitle>
@@ -92,7 +90,7 @@ export function PayInvoiceDialog({
             <Label>Payment method</Label>
             <select
               value={gatewayKey}
-              onChange={(e) => setGatewayKey(e.target.value)}
+              onChange={(e) => setSelectedKey(e.target.value)}
               className="h-9 w-full rounded-md border bg-background px-3 text-sm"
             >
               {gateways.length > 1 && <option value="">Select a payment method</option>}
@@ -116,8 +114,4 @@ export function PayInvoiceDialog({
       </DialogContent>
     </Dialog>
   )
-}
-
-export function hasOutstandingBalance(balance: MoneyValue | undefined) {
-  return (balance?.amount ?? 0) > 0
 }
