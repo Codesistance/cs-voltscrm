@@ -1,0 +1,50 @@
+name: Deploy Infrastructure
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infrastructure/**"
+      - ".github/workflows/deploy-infrastructure.yml"
+  workflow_dispatch:
+
+# AWS auth uses OIDC to assume the codesistance-github-terraform role (id-token permission below).
+# Required repo config: vars.TF_BACKEND_BUCKET, vars.TF_BACKEND_DYNAMODB_TABLE
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-west-1
+  TF_VAR_FILE: ../environment/production.tfvars
+
+jobs:
+  infrastructure:
+    name: Terraform apply
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::776051123142:role/codesistance-github-terraform
+          aws-region: ${{ env.AWS_REGION }}
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.9.8"
+
+      # Task definitions reference the stable ":production" image tag, so apply manages
+      # infrastructure/topology only — image rollout is driven by the backend workflow.
+      - name: Terraform apply
+        working-directory: infrastructure/deployment
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_BACKEND_BUCKET }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_BACKEND_DYNAMODB_TABLE }}" \
+            -backend-config="region=${{ env.AWS_REGION }}"
+          terraform apply -auto-approve -var-file="$TF_VAR_FILE"

@@ -1,0 +1,64 @@
+name: Deploy UI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/frontend/web/**"
+      - ".github/workflows/deploy-ui.yml"
+  workflow_dispatch:
+
+# AWS auth uses OIDC to assume the codesistance-github-terraform role (id-token permission below).
+# Required repo config: vars.TF_BACKEND_BUCKET, vars.TF_BACKEND_DYNAMODB_TABLE
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-west-1
+
+jobs:
+  ui:
+    name: Build & sync SPA
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::776051123142:role/codesistance-github-terraform
+          aws-region: ${{ env.AWS_REGION }}
+
+      # ── Read resource names from Terraform state (read-only, no apply) ─────────
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.9.8"
+
+      - name: Terraform init (read outputs)
+        working-directory: infrastructure/deployment
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_BACKEND_BUCKET }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_BACKEND_DYNAMODB_TABLE }}" \
+            -backend-config="region=${{ env.AWS_REGION }}"
+
+      # ── Build & deploy the SPA ─────────────────────────────────────────────────
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: src/frontend/web/package-lock.json
+
+      - name: Build & sync SPA
+        working-directory: infrastructure/deployment
+        run: |
+          SPA_BUCKET=$(terraform output -raw spa_bucket)
+          DIST_ID=$(terraform output -raw cloudfront_distribution_id)
+          ( cd "$GITHUB_WORKSPACE/src/frontend/web" && npm ci && npm run build )
+          aws s3 sync "$GITHUB_WORKSPACE/src/frontend/web/dist/" "s3://$SPA_BUCKET/" --delete
+          aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"

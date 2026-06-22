@@ -1,0 +1,104 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/backend/**"
+      - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
+
+# AWS auth uses OIDC to assume the codesistance-github-terraform role (id-token permission below).
+# Required repo config: vars.TF_BACKEND_BUCKET, vars.TF_BACKEND_DYNAMODB_TABLE
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: eu-west-1
+
+jobs:
+  backend:
+    name: Build, migrate & roll API/Worker
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: arn:aws:iam::776051123142:role/codesistance-github-terraform
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2.1.6
+
+      # ── Build & push images: pinned :<sha> + moving :production ────────────────
+      # ECS task defs reference :production; Fargate always pulls fresh, so a
+      # force-new-deployment below picks up this image.
+      - name: Build & push API and Worker images
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+          TAG: ${{ github.sha }}
+        run: |
+          API_REPO="$REGISTRY/voltscrm-production-api"
+          WORKER_REPO="$REGISTRY/voltscrm-production-worker"
+          docker build -f src/backend/api/VoltsCRM.API/Dockerfile -t "$API_REPO:$TAG" -t "$API_REPO:production" .
+          docker build -f src/backend/worker/VoltsCRM.Worker/Dockerfile -t "$WORKER_REPO:$TAG" -t "$WORKER_REPO:production" .
+          docker push "$API_REPO:$TAG"
+          docker push "$API_REPO:production"
+          docker push "$WORKER_REPO:$TAG"
+          docker push "$WORKER_REPO:production"
+
+      # ── Read resource names from Terraform state (read-only, no apply) ─────────
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.9.8"
+
+      - name: Terraform init (read outputs)
+        working-directory: infrastructure/deployment
+        run: |
+          terraform init \
+            -backend-config="bucket=${{ vars.TF_BACKEND_BUCKET }}" \
+            -backend-config="dynamodb_table=${{ vars.TF_BACKEND_DYNAMODB_TABLE }}" \
+            -backend-config="region=${{ env.AWS_REGION }}"
+
+      # ── Apply DB migrations via a one-off Fargate task inside the VPC ──────────
+      # Runs before the service roll so the schema is ready. The task def's
+      # :production image was just pushed above, so this executes the new image.
+      - name: Run database migrations
+        working-directory: infrastructure/deployment
+        run: |
+          CLUSTER=$(terraform output -raw ecs_cluster_name)
+          TASKDEF=$(terraform output -raw api_task_definition_family)
+          SG=$(terraform output -raw api_security_group_id)
+          SUBNETS=$(terraform output -json private_subnet_ids | jq -r 'join(",")')
+
+          TASK_ARN=$(aws ecs run-task \
+            --cluster "$CLUSTER" \
+            --task-definition "$TASKDEF" \
+            --launch-type FARGATE \
+            --network-configuration "awsvpcConfiguration={subnets=[$SUBNETS],securityGroups=[$SG],assignPublicIp=DISABLED}" \
+            --overrides '{"containerOverrides":[{"name":"api","command":["migrate"]}]}' \
+            --query 'tasks[0].taskArn' --output text)
+
+          echo "Migration task: $TASK_ARN"
+          aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
+
+          EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[?name==`api`].exitCode | [0]' --output text)
+          echo "Migration exit code: $EXIT_CODE"
+          [ "$EXIT_CODE" = "0" ]
+
+      # ── Roll the ECS services onto the freshly pushed :production image ────────
+      - name: Force new deployment
+        working-directory: infrastructure/deployment
+        run: |
+          CLUSTER=$(terraform output -raw ecs_cluster_name)
+          aws ecs update-service --cluster "$CLUSTER" --service voltscrm-production-api --force-new-deployment
+          aws ecs update-service --cluster "$CLUSTER" --service voltscrm-production-worker --force-new-deployment
+          aws ecs wait services-stable --cluster "$CLUSTER" --services voltscrm-production-api voltscrm-production-worker

@@ -24,16 +24,18 @@ variable "vpc_cidr" {
 
 # ── Container images ──────────────────────────────────────────────────────────
 
+# Stable moving tag: the backend deploy workflow pushes this tag and rolls the
+# services with force-new-deployment, so Terraform never needs the commit SHA.
 variable "api_image_tag" {
   description = "Docker image tag for VoltsCRM.API"
   type        = string
-  default     = "latest"
+  default     = "production"
 }
 
 variable "worker_image_tag" {
   description = "Docker image tag for VoltsCRM.Worker"
   type        = string
-  default     = "latest"
+  default     = "production"
 }
 
 # ── ECS ───────────────────────────────────────────────────────────────────────
