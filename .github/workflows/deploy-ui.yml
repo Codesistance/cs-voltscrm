@@ -2,15 +2,15 @@ name: Frontend
 
 on:
   push:
-    branches: [main]
-    paths:
-      - "src/frontend/web/**"
-      - ".github/workflows/deploy-ui.yml"
-  pull_request:
     paths:
       - "src/frontend/web/**"
       - ".github/workflows/deploy-ui.yml"
   workflow_dispatch:
+
+# Cancel superseded runs on the same ref (latest push wins).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # AWS auth uses OIDC to assume the codesistance-github-terraform role (id-token permission below).
 # The state backend is created by the deploy-infrastructure workflow; here we only read outputs.
