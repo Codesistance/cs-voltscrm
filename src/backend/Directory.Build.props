@@ -1,0 +1,21 @@
+<Project>
+
+  <!--
+    Relocates ALL build output (bin + obj) for the backend projects into a single
+    src/backend/artifacts/ tree instead of per-project bin/ and obj/ folders.
+
+    Why: docker-compose.yml bind-mounts ./src/backend into the API container, and the
+    container's Linux `dotnet watch` and the host's Windows build use different NuGet package
+    paths (/root/.nuget/packages vs %USERPROFILE%\.nuget\packages). When both write
+    obj/project.assets.json to the same mounted folder they clobber each other, breaking
+    builds. Consolidating output into one artifacts/ folder lets docker-compose mask just that
+    folder with a container-only volume, so host and container keep separate build files.
+
+    ArtifactsPath is pinned next to this file so it resolves identically on host and container.
+  -->
+  <PropertyGroup>
+    <UseArtifactsOutput>true</UseArtifactsOutput>
+    <ArtifactsPath>$(MSBuildThisFileDirectory)artifacts</ArtifactsPath>
+  </PropertyGroup>
+
+</Project>

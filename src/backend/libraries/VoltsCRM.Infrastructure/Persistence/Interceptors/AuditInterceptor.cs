@@ -1,0 +1,35 @@
+using Microsoft.AspNetCore.Http;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using System.Security.Claims;
+using VoltsCRM.Domain.Common;
+
+namespace VoltsCRM.Infrastructure.Persistence.Interceptors;
+
+public class AuditInterceptor(TimeProvider timeProvider, IHttpContextAccessor httpContextAccessor) : SaveChangesInterceptor
+{
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+        DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+    {
+        if (eventData.Context is null) return base.SavingChangesAsync(eventData, result, cancellationToken);
+
+        var now = timeProvider.GetUtcNow();
+        var userId = httpContextAccessor.HttpContext?.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        foreach (var entry in eventData.Context.ChangeTracker.Entries<Entity>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                entry.Property(nameof(Entity.CreatedAt)).CurrentValue = now;
+                entry.Property(nameof(Entity.UpdatedAt)).CurrentValue = now;
+                entry.Property(nameof(Entity.CreatedById)).CurrentValue = userId;
+            }
+            else if (entry.State == EntityState.Modified)
+            {
+                entry.Property(nameof(Entity.UpdatedAt)).CurrentValue = now;
+            }
+        }
+
+        return base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
+}

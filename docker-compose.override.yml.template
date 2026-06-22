@@ -1,0 +1,9 @@
+﻿# docker-compose.override.yml.template
+# Copy this file to docker-compose.override.yml and fill in your secrets.
+# docker-compose.override.yml is gitignored and will NOT be committed.
+
+services:
+  api:
+    environment:
+      # Generate a secure key: openssl rand -base64 32
+      Jwt__Key: "your-minimum-32-character-secret-key-here"

@@ -1,0 +1,20 @@
+<Solution>
+  <Folder Name="/src/" />
+  <Folder Name="/src/backend/">
+    <Project Path="src/backend/api/VoltsCRM.API/VoltsCRM.API.csproj" />
+    <Project Path="src/backend/worker/VoltsCRM.Worker/VoltsCRM.Worker.csproj" />
+  </Folder>
+  <Folder Name="/src/backend/libraries/">
+    <Project Path="src/backend/libraries/VoltsCRM.Application/VoltsCRM.Application.csproj" />
+    <Project Path="src/backend/libraries/VoltsCRM.Domain/VoltsCRM.Domain.csproj" />
+    <Project Path="src/backend/libraries/VoltsCRM.Infrastructure/VoltsCRM.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/VoltsCRM.DevCli/VoltsCRM.DevCli.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/api/VoltsCRM.Integration.Tests/VoltsCRM.Integration.Tests.csproj" />
+    <Project Path="tests/libraries/VoltsCRM.Application.Tests/VoltsCRM.Application.Tests.csproj" />
+    <Project Path="tests/libraries/VoltsCRM.Domain.Tests/VoltsCRM.Domain.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,29 @@
+# syntax=docker/dockerfile:1
+# Development Dockerfile with hot reload support
+# Usage: docker-compose up (uses this via docker-compose.yml)
+
+FROM mcr.microsoft.com/dotnet/sdk:10.0
+
+# Install useful tools for debugging
+RUN apt-get update && apt-get install -y --no-install-recommends \
+	curl \
+	procps \
+	&& rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+
+# Environment for development
+ENV ASPNETCORE_ENVIRONMENT=Development
+ENV ASPNETCORE_URLS=https://+:7233;http://+:5003
+ENV ASPNETCORE_Kestrel__Certificates__Default__Path=/https/aspnetapp.pfx
+ENV ASPNETCORE_Kestrel__Certificates__Default__Password=devcert
+ENV DOTNET_USE_POLLING_FILE_WATCHER=true
+ENV DOTNET_WATCH_RESTART_ON_RUDE_EDIT=true
+
+# Expose both HTTP and HTTPS ports
+EXPOSE 5003
+EXPOSE 7233
+
+# Entry point: build once then run dotnet watch for hot reload
+# The source code is mounted as a volume by docker-compose
+ENTRYPOINT ["sh", "-c", "dotnet build src/backend/api/VoltsCRM.API/VoltsCRM.API.csproj && dotnet watch run --project src/backend/api/VoltsCRM.API/VoltsCRM.API.csproj --no-launch-profile"]

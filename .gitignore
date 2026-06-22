@@ -1,0 +1,40 @@
+# Build outputs
+**/bin/
+**/obj/
+**/out/
+**/artifacts/
+
+# IDE and editor
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Test results
+**/TestResults/
+**/coverage/
+
+# User secrets
+secrets.json
+
+# Local configuration overrides
+**/appsettings.*.Local.json
+docker-compose.override.yml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+backend.hcl
+
+# Certificates
+**/certs/
+*.pfx
+*.pem

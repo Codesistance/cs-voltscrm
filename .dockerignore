@@ -1,0 +1,28 @@
+# Build artifacts
+**/bin/
+**/obj/
+**/out/
+
+# Frontend (built and deployed separately to S3/CloudFront)
+**/node_modules/
+src/frontend/web/dist/
+
+# Terraform state & local config
+**/.terraform/
+**/*.tfstate
+**/*.tfstate.*
+**/backend.hcl
+
+# IDE / VCS / OS
+.git/
+.github/
+.vs/
+.vscode/
+.idea/
+**/.DS_Store
+
+# Secrets / local dev
+**/certs/
+**/*.user
+**/appsettings.*.Local.json
+docker-compose.override.yml

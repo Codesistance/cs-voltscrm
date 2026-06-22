@@ -1,0 +1,86 @@
+# VoltsCRM Local Development Docker Compose
+# Usage:
+#   docker-compose up -d        # Start in background
+#   docker-compose logs -f api  # Follow API logs
+#   docker-compose down         # Stop containers
+#   docker-compose down -v      # Stop and delete volumes (reset DB)
+#
+# HTTPS Setup (run once):
+#   dotnet dev-certs https -ep ./certs/aspnetapp.pfx -p devcert
+#   dotnet dev-certs https --trust
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:16-alpine
+    container_name: voltscrm-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: voltscrm
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - voltscrm_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d voltscrm"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # VoltsCRM API (Development with Hot Reload)
+  api:
+    build:
+      context: .
+      dockerfile: src/backend/api/VoltsCRM.API/Dockerfile.dev
+    container_name: voltscrm-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "5003:5003"
+      - "7233:7233"
+    volumes:
+      # Mount source code for hot reload
+      - ./src/backend:/src/src/backend:cached
+      # Container-only build output: masks src/backend/artifacts (see src/backend/Directory.Build.props)
+      # so the container's Linux bin/obj never share files with the host's Windows build via the
+      # source mount above. This is what prevents host/container obj clobbering.
+      - voltscrm_artifacts:/src/src/backend/artifacts
+      # Mount solution file for dotnet watch
+      - ./VoltsCRM.slnx:/src/VoltsCRM.slnx:ro
+      # Persist NuGet packages to speed up rebuilds
+      - voltscrm_nuget:/root/.nuget/packages
+      # HTTPS certificate
+      - ./certs:/https:ro
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      # Database connection (uses docker network hostname)
+      ConnectionStrings__DefaultConnection: "Host=db;Port=5432;Database=voltscrm;Username=postgres;Password=postgres"
+      # JWT settings for local development
+      Jwt__Key: "VoltsCRM-Dev-Secret-Key-For-Local-Development-Only-2024!"
+      Jwt__Issuer: VoltsCRM
+      Jwt__Audience: VoltsCRM
+      # Seed-admin HMAC key (dev-only; in deployed envs this comes from AWS Secrets Manager)
+      Seed__HmacKey: "VoltsCRM-Dev-Seed-HMAC-Key-Local-Development-Only-2024!"
+      # Voltspayments no-op gateway webhook secret (dev-only; deployed envs use AWS Secrets Manager)
+      Payments__Voltspayments__WebhookSecret: "VoltsCRM-Dev-Voltspayments-Webhook-Secret-Local-Only-2024!"
+      # CORS - allow local frontend dev server
+      Cors__AllowedOrigins__0: "http://localhost:5173"
+      Cors__AllowedOrigins__1: "https://localhost:5173"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "-k", "https://localhost:7233/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  voltscrm_pgdata:
+    name: voltscrm_pgdata
+  voltscrm_nuget:
+    name: voltscrm_nuget
+  voltscrm_artifacts:
+    name: voltscrm_artifacts
