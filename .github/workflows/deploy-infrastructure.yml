@@ -2,15 +2,15 @@ name: Infrastructure
 
 on:
   push:
-    branches: [main]
-    paths:
-      - "infrastructure/**"
-      - ".github/workflows/deploy-infrastructure.yml"
-  pull_request:
     paths:
       - "infrastructure/**"
       - ".github/workflows/deploy-infrastructure.yml"
   workflow_dispatch:
+
+# Cancel superseded runs on the same ref (latest push wins).
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 # AWS auth uses OIDC to assume the codesistance-github-terraform role (id-token permission below).
 # The Terraform state backend (S3 bucket + DynamoDB lock table) is bootstrapped by the step below.

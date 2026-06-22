@@ -21,24 +21,41 @@ resource "aws_lb_target_group" "api" {
   }
 }
 
+locals {
+  tls_enabled = var.acm_certificate_arn != ""
+}
+
+# Port 80: redirect to HTTPS when a cert is configured, otherwise forward
+# directly to the target group so the ALB still serves traffic over plain HTTP.
 resource "aws_lb_listener" "http" {
   load_balancer_arn = aws_lb.api.arn
   port              = 80
   protocol          = "HTTP"
 
-  default_action {
-    type = "redirect"
-    redirect {
-      port        = "443"
-      protocol    = "HTTPS"
-      status_code = "HTTP_301"
+  dynamic "default_action" {
+    for_each = local.tls_enabled ? [1] : []
+    content {
+      type = "redirect"
+      redirect {
+        port        = "443"
+        protocol    = "HTTPS"
+        status_code = "HTTP_301"
+      }
+    }
+  }
+
+  dynamic "default_action" {
+    for_each = local.tls_enabled ? [] : [1]
+    content {
+      type             = "forward"
+      target_group_arn = aws_lb_target_group.api.arn
     }
   }
 }
 
-# HTTPS listener — attach an ACM certificate ARN via aws_lb_listener_certificate
-# after the cert is issued; placeholder here so the plan applies cleanly.
+# HTTPS listener — only created when an ACM certificate ARN is provided.
 resource "aws_lb_listener" "https" {
+  count             = local.tls_enabled ? 1 : 0
   load_balancer_arn = aws_lb.api.arn
   port              = 443
   protocol          = "HTTPS"
