@@ -8,7 +8,8 @@ vpc_cidr = "10.0.0.0/16"
 
 # ── TLS ───────────────────────────────────────────────────────────────────────
 # Issue an ACM certificate for your domain (must be in us-east-1 for ALB)
-# then paste the ARN here.
+# then paste the ARN here. Optional: leave empty to serve the API over plain
+# HTTP on port 80 (no HTTPS listener) — for bring-up only, not production traffic.
 
 acm_certificate_arn = ""
 

@@ -33,6 +33,11 @@ These steps create things Terraform can't bootstrap itself or that depend on ext
    validate it, and set `acm_certificate_arn` in `production.tfvars`. Also set
    `cors_allowed_origins`, `ses_domain`, and `ses_from_address`.
 
+   > `acm_certificate_arn` is optional (defaults to `""`). When set, the ALB serves the API over
+   > HTTPS on port 443 and redirects port 80 to it. When left empty, no HTTPS listener is created
+   > and port 80 forwards straight to the API target group — useful for bringing the stack up before
+   > a cert is issued, but **don't run production traffic over plain HTTP**.
+
 3. **First apply.**
    ```bash
    terraform apply -var-file=../environment/production.tfvars
