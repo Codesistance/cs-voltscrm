@@ -136,8 +136,9 @@ variable "jwt_refresh_expiry_days" {
 # ── TLS ───────────────────────────────────────────────────────────────────────
 
 variable "acm_certificate_arn" {
-  description = "ARN of an ACM certificate in us-east-1 for the ALB HTTPS listener"
+  description = "ARN of an ACM certificate in us-east-1 for the ALB HTTPS listener. When empty, the ALB serves traffic over plain HTTP on port 80 instead."
   type        = string
+  default     = ""
 }
 
 # ── CloudFront ────────────────────────────────────────────────────────────────

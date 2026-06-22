@@ -10,7 +10,7 @@ vpc_cidr = "10.0.0.0/16"
 # Issue an ACM certificate for your domain (must be in us-east-1 for ALB)
 # then paste the ARN here.
 
-acm_certificate_arn = "arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERTIFICATE_ID"
+acm_certificate_arn = ""
 
 # ── Container images ──────────────────────────────────────────────────────────
 
