@@ -23,17 +23,17 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::776051123142:role/codesistance-github-terraform
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
         id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@v2.1.6
 
       # ── Build & push images (tag = commit SHA) ────────────────────────────────
       - name: Build & push API and Worker images
@@ -49,7 +49,7 @@ jobs:
           docker push "$WORKER_REPO:$TAG"
 
       # ── Terraform apply (rolls ECS services to the new image tags) ─────────────
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "1.9.8"
 
@@ -92,7 +92,7 @@ jobs:
 
       # ── Build & deploy the SPA ─────────────────────────────────────────────────
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: "22"
           cache: npm
