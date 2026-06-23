@@ -1,8 +1,10 @@
 resource "aws_s3_bucket" "spa" {
-  bucket = "${local.prefix}-spa"
+  provider = aws.us_east_1
+  bucket   = "${local.prefix}-spa"
 }
 
 resource "aws_s3_bucket_public_access_block" "spa" {
+  provider                = aws.us_east_1
   bucket                  = aws_s3_bucket.spa.id
   block_public_acls       = true
   block_public_policy     = true
@@ -11,10 +13,12 @@ resource "aws_s3_bucket_public_access_block" "spa" {
 }
 
 resource "aws_s3_bucket" "assets" {
-  bucket = "${local.prefix}-assets"
+  provider = aws.us_east_1
+  bucket   = "${local.prefix}-assets"
 }
 
 resource "aws_s3_bucket_public_access_block" "assets" {
+  provider                = aws.us_east_1
   bucket                  = aws_s3_bucket.assets.id
   block_public_acls       = true
   block_public_policy     = true
@@ -25,6 +29,7 @@ resource "aws_s3_bucket_public_access_block" "assets" {
 # ── CloudFront OAC for SPA bucket ─────────────────────────────────────────────
 
 resource "aws_cloudfront_origin_access_control" "spa" {
+  provider                          = aws.us_east_1
   name                              = "${local.prefix}-spa"
   origin_access_control_origin_type = "s3"
   signing_behavior                  = "always"
@@ -32,7 +37,8 @@ resource "aws_cloudfront_origin_access_control" "spa" {
 }
 
 resource "aws_s3_bucket_policy" "spa" {
-  bucket = aws_s3_bucket.spa.id
+  provider = aws.us_east_1
+  bucket   = aws_s3_bucket.spa.id
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -53,6 +59,7 @@ resource "aws_s3_bucket_policy" "spa" {
 }
 
 resource "aws_cloudfront_distribution" "spa" {
+  provider            = aws.us_east_1
   enabled             = true
   default_root_object = "index.html"
   price_class         = var.cloudfront_price_class
