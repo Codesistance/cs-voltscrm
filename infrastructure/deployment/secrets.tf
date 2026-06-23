@@ -1,7 +1,7 @@
 # DB credentials — set the secret value manually or via CI after first apply
 resource "aws_secretsmanager_secret" "db" {
   name                    = "${local.prefix}/db"
-  recovery_window_in_days = 7
+  recovery_window_in_days = var.secrets_recovery_window_in_days
 }
 
 resource "aws_secretsmanager_secret_version" "db" {
@@ -23,7 +23,7 @@ resource "aws_secretsmanager_secret_version" "db" {
 # JWT signing key — rotate via Secrets Manager; never stored in source
 resource "aws_secretsmanager_secret" "jwt_key" {
   name                    = "${local.prefix}/jwt-key"
-  recovery_window_in_days = 7
+  recovery_window_in_days = var.secrets_recovery_window_in_days
 }
 
 resource "aws_secretsmanager_secret_version" "jwt_key" {
@@ -39,7 +39,7 @@ resource "aws_secretsmanager_secret_version" "jwt_key" {
 # Injected into the API task as Seed__HmacKey; rotate via Secrets Manager; never stored in source.
 resource "aws_secretsmanager_secret" "seed_hmac_key" {
   name                    = "${local.prefix}/seed-hmac-key"
-  recovery_window_in_days = 7
+  recovery_window_in_days = var.secrets_recovery_window_in_days
 }
 
 resource "aws_secretsmanager_secret_version" "seed_hmac_key" {
