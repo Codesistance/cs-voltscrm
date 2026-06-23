@@ -24,19 +24,24 @@ output "rds_endpoint" {
   sensitive   = true
 }
 
-output "db_secret_arn" {
-  description = "Secrets Manager ARN for DB credentials"
-  value       = aws_secretsmanager_secret.db.arn
+output "db_password_parameter_arn" {
+  description = "SSM Parameter Store ARN for the DB master password"
+  value       = aws_ssm_parameter.db_password.arn
 }
 
-output "jwt_key_secret_arn" {
-  description = "Secrets Manager ARN for the JWT signing key"
-  value       = aws_secretsmanager_secret.jwt_key.arn
+output "db_connection_string_parameter_arn" {
+  description = "SSM Parameter Store ARN for the DB connection string"
+  value       = aws_ssm_parameter.db_connection_string.arn
 }
 
-output "seed_hmac_key_secret_arn" {
-  description = "Secrets Manager ARN for the seed-admin HMAC key"
-  value       = aws_secretsmanager_secret.seed_hmac_key.arn
+output "jwt_key_parameter_arn" {
+  description = "SSM Parameter Store ARN for the JWT signing key"
+  value       = aws_ssm_parameter.jwt_key.arn
+}
+
+output "seed_hmac_key_parameter_arn" {
+  description = "SSM Parameter Store ARN for the seed-admin HMAC key"
+  value       = aws_ssm_parameter.seed_hmac_key.arn
 }
 
 output "assets_bucket" {

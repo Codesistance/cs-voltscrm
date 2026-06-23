@@ -36,7 +36,7 @@ goal; the platform is built to deliver four outcomes:
 | Database | PostgreSQL via EF Core 9 (Npgsql); schemas: `identity`, `crm`, `billing`, `inventory`, `organisation` |
 | Auth | ASP.NET Identity + JWT Bearer (15 min access) + refresh tokens (7 days, rotated); user-type + dynamic admin RBAC |
 | Logging | Serilog (JSON, console) |
-| Infra | Terraform on AWS (ECS Fargate, RDS PostgreSQL, ElastiCache Redis, S3, ALB, CloudFront, SES, SNS+SQS, Secrets Manager) — DNS managed externally |
+| Infra | Terraform on AWS (ECS Fargate, RDS PostgreSQL, ElastiCache Redis, S3, ALB, CloudFront, SES, SNS+SQS, SSM Parameter Store) — DNS managed externally |
 | Maps / Charts | React-Leaflet (agent map), Recharts (report charts) |
 | CSV | CsvHelper — customer import API (dry-run + commit) wired |
 
@@ -186,8 +186,8 @@ dotnet run --project src/backend/api/VoltsCRM.API
 ```
 - `Jwt:Key` and `Seed:HmacKey` are both **required** and validated at startup (each must be ≥ 32
   chars) — see [Program.cs](./src/backend/api/VoltsCRM.API/Program.cs). `Seed:HmacKey` is the secret
-  that derives the seeded admin's daily password; in deployed environments it comes from AWS Secrets
-  Manager (see [infrastructure/README.md](./infrastructure/README.md)).
+  that derives the seeded admin's daily password; in deployed environments it comes from AWS SSM
+  Parameter Store (see [infrastructure/README.md](./infrastructure/README.md)).
 
 ### Seeded admin login
 The seeded admin is `admin@voltscrm.local`. Its password is **computed per day** (not a fixed value).

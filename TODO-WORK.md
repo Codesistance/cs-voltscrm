@@ -206,7 +206,7 @@ Ordered by severity. Apply S1 before any non-local deployment.
   password and log in as super-admin (security-by-obscurity; the date is not entropy).
 - **Decision (with owner):** keep the reseeding admin, the daily rotation, and the Super-Admin disable
   kill-switch (`IsActive=false` is durable — the seeder never re-enables it) — but make the **HMAC key
-  the secret**, sourced per-environment from **AWS Secrets Manager**, injected as env var
+  the secret**, sourced per-environment from **AWS SSM Parameter Store**, injected as env var
   `Seed__HmacKey` (config `Seed:HmacKey`), exactly like `Jwt__Key`.
 - **Implemented:** key is now a parameter
   ([SeedCredentialGenerator.cs](src/backend/libraries/VoltsCRM.Infrastructure/Identity/SeedCredentialGenerator.cs)),
@@ -214,12 +214,12 @@ Ordered by severity. Apply S1 before any non-local deployment.
   [Program.cs](src/backend/api/VoltsCRM.API/Program.cs); `DbSeeder` passes it; the `SeedAdminUser`
   migration no longer bakes a deterministic password (random placeholder, overwritten by the seeder);
   the `seed-password` CLI prints nothing without the key (no longer a source-derivable oracle). Infra:
-  `seed_hmac_key` Secrets Manager secret + IAM + ECS `Seed__HmacKey` injection
+  `seed_hmac_key` SSM Parameter Store SecureString + IAM + ECS `Seed__HmacKey` injection
   ([secrets.tf](infrastructure/deployment/secrets.tf), [ecs.tf](infrastructure/deployment/ecs.tf)).
   Local dev key in [docker-compose.yml](docker-compose.yml) / user-secrets.
 - **Acceptance:** ✅ password not derivable from source; startup fails-closed without `Seed:HmacKey`;
-  rotation + Super-Admin disable retained. Operator action: populate `voltscrm-production/seed-hmac-key`
-  in Secrets Manager (see [infrastructure/README.md](infrastructure/README.md)).
+  rotation + Super-Admin disable retained. Operator action: populate `/voltscrm-production/seed-hmac-key`
+  in SSM Parameter Store (see [infrastructure/README.md](infrastructure/README.md)).
 
 ### S2 — [RESOLVED 2026-06-20] Webhook signature validation pattern fixed
 - **Was:** `ValidateWebhookSignature` returned `true` unconditionally for the gateway stubs; any wired
@@ -237,7 +237,7 @@ Ordered by severity. Apply S1 before any non-local deployment.
 ### S3 — [HIGH] Gateway / token-vending secrets stored in plaintext
 - **Files:** [SettingsCommands.cs](src/backend/libraries/VoltsCRM.Application/Features/Settings/SettingsCommands.cs) + the `PaymentGatewaySettings` / `TokenVendingSettings` entities under `Domain.Entities.Organisation`.
 - **Issue:** `TokenVendingSettings.ApiKey` (and any future gateway secret) is persisted unencrypted; masking (`••••••••`) happens only on the read DTO, not at rest. Separately, the payment-gateway input only captures `Provider`/`MerchantId`/`PublicKey` (a *public* value) — there is **no field for the actual API secret / private key / webhook secret**, so the integration story is both insecure and incomplete.
-- **Fix:** decide the secret-of-record location (prefer AWS Secrets Manager reference stored in the row, not the secret itself); if storing in-DB is required, encrypt with `IDataProtector` / column encryption. Add the missing secret field(s) and never return them on read.
+- **Fix:** decide the secret-of-record location (prefer an AWS SSM Parameter Store reference stored in the row, not the secret itself); if storing in-DB is required, encrypt with `IDataProtector` / column encryption. Add the missing secret field(s) and never return them on read.
 - **Acceptance:** DB inspection shows no plaintext API secrets; secrets are write-only via the API.
 
 ### S4 — [MEDIUM] Auth rate limiter is global (unpartitioned)
@@ -454,9 +454,9 @@ Integration tests added: `InvoiceBalanceQueryTests.cs`
   tests green (`PortalPaymentTests`). FE Pay button still to wire (Cursor).
 
 ### Phase 19 — Infrastructure & CI/CD
-- [ ] Terraform AWS (ECS Fargate, RDS, ElastiCache, S3, ALB, CloudFront, SES, SNS+SQS, Secrets Manager)
-  - Add `Payments__Voltspayments__WebhookSecret` (and future gateway secrets) as a Secrets Manager
-    secret + ECS injection, exactly like `Seed__HmacKey` (dev value is in docker-compose).
+- [ ] Terraform AWS (ECS Fargate, RDS, ElastiCache, S3, ALB, CloudFront, SES, SNS+SQS, SSM Parameter Store)
+  - Add `Payments__Voltspayments__WebhookSecret` (and future gateway secrets) as an SSM Parameter
+    Store SecureString + ECS injection, exactly like `Seed__HmacKey` (dev value is in docker-compose).
 - [ ] `production.tfvars` + per-environment config
 - [ ] CI/CD pipeline (build, test, migrate, deploy) — ensure S1 seeding is prod-safe
 

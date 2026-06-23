@@ -8,7 +8,7 @@ Terraform (AWS) + GitHub Actions for the VoltsCRM API, Worker, and React SPA.
 | Data | RDS PostgreSQL 16, ElastiCache Redis |
 | Edge | CloudFront + S3 (SPA), ALB (API), ACM TLS |
 | Messaging | SNS topic → SQS queue (+ DLQ), SES for email |
-| Secrets | Secrets Manager (DB connection string, JWT signing key) |
+| Secrets | SSM Parameter Store SecureString (DB password + connection string, JWT signing key, seed HMAC key) |
 | Registry | ECR (`-api`, `-worker`) |
 
 Terraform lives in [deployment/](deployment/); environment values in
@@ -42,34 +42,37 @@ These steps create things Terraform can't bootstrap itself or that depend on ext
    ```bash
    terraform apply -var-file=../environment/production.tfvars
    ```
-   The `db`, `jwt-key`, and `seed-hmac-key` secrets are created with `REPLACE_AFTER_FIRST_APPLY`
-   placeholders. Their deletion-recovery window is set by `secrets_recovery_window_in_days`
-   (default `0` = immediate deletion, no recovery window), so a `terraform destroy` followed by a
-   re-apply won't be blocked by a name still "scheduled for deletion". Set it to `7`–`30` for a
-   hardened production stack that wants a recovery window.
+   The `db/password`, `db/connection-string`, `jwt-key`, and `seed-hmac-key` SSM SecureString
+   parameters are created with `REPLACE_AFTER_FIRST_APPLY` placeholders. Terraform ignores later
+   changes to their values (`ignore_changes = [value]`), so set the real values out-of-band as
+   below. SSM has no deletion-recovery window, so a `terraform destroy` + re-apply is never blocked
+   by a name still "scheduled for deletion".
 
 4. **Set the real secret values.** After RDS exists, read its endpoint
-   (`terraform output rds_endpoint`) and set both secrets:
+   (`terraform output rds_endpoint`) and overwrite each parameter:
    ```bash
-   # DB: store the master password AND the full connection string the ECS tasks inject.
-   aws secretsmanager put-secret-value --secret-id voltscrm-production/db --secret-string '{
-     "username":"voltscrm",
-     "password":"<strong-password>",
-     "connectionString":"Host=<rds_endpoint>;Port=5432;Database=voltscrm;Username=voltscrm;Password=<strong-password>"
-   }'
+   # DB master password (sourced by RDS on create — see rds.tf).
+   aws ssm put-parameter --overwrite --type SecureString \
+     --name /voltscrm-production/db/password --value "<strong-password>"
+
+   # Full DB connection string injected into the ECS tasks. Keep the password here in sync
+   # with the master password above.
+   aws ssm put-parameter --overwrite --type SecureString \
+     --name /voltscrm-production/db/connection-string \
+     --value "Host=<rds_endpoint>;Port=5432;Database=voltscrm;Username=voltscrm;Password=<strong-password>"
 
    # JWT signing key (>= 32 chars).
-   aws secretsmanager put-secret-value --secret-id voltscrm-production/jwt-key \
-     --secret-string "$(openssl rand -base64 48)"
+   aws ssm put-parameter --overwrite --type SecureString \
+     --name /voltscrm-production/jwt-key --value "$(openssl rand -base64 48)"
 
    # Seed-admin HMAC key (>= 32 chars) — derives the seeded admin's daily password.
    # This is the entropy that keeps that password unguessable; it must not be in source.
-   aws secretsmanager put-secret-value --secret-id voltscrm-production/seed-hmac-key \
-     --secret-string "$(openssl rand -base64 48)"
+   aws ssm put-parameter --overwrite --type SecureString \
+     --name /voltscrm-production/seed-hmac-key --value "$(openssl rand -base64 48)"
    ```
-   > The RDS master password is sourced from this secret on create
-   > ([rds.tf](deployment/rds.tf)); keep `password` and the password inside `connectionString` in
-   > sync.
+   > The RDS master password is sourced from `db/password` on create
+   > ([rds.tf](deployment/rds.tf)); keep it in sync with the password embedded in
+   > `db/connection-string`.
 
 5. **Verify SES.** Publish the DNS records to your external DNS provider, then wait for SES to
    verify:

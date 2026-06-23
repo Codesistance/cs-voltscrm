@@ -37,7 +37,7 @@ public static class SeedCredentialGenerator
         if (string.IsNullOrEmpty(key) || key.Length < MinKeyLength)
             throw new ArgumentException(
                 $"Seed HMAC key must be at least {MinKeyLength} characters. Configure 'Seed:HmacKey' " +
-                "via the Seed__HmacKey env var / AWS Secrets Manager — it must never be hardcoded.",
+                "via the Seed__HmacKey env var / AWS SSM Parameter Store — it must never be hardcoded.",
                 nameof(key));
 
         var keyBytes = Encoding.UTF8.GetBytes(key);

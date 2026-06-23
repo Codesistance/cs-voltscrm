@@ -142,17 +142,8 @@ variable "acm_certificate_arn" {
 }
 
 # ── Secrets ───────────────────────────────────────────────────────────────────
-
-variable "secrets_recovery_window_in_days" {
-  description = "Recovery window for Secrets Manager secrets on destroy. 0 deletes immediately (so a destroy + re-apply isn't blocked by a name still scheduled for deletion); 7–30 keeps a recovery window."
-  type        = number
-  default     = 0
-
-  validation {
-    condition     = var.secrets_recovery_window_in_days == 0 || (var.secrets_recovery_window_in_days >= 7 && var.secrets_recovery_window_in_days <= 30)
-    error_message = "secrets_recovery_window_in_days must be 0 or between 7 and 30 (AWS Secrets Manager constraint)."
-  }
-}
+# Secrets are SSM Parameter Store SecureString parameters (see secrets.tf). SSM has no
+# deletion-recovery window, so there is nothing to configure here.
 
 # ── CloudFront ────────────────────────────────────────────────────────────────
 

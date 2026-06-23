@@ -46,7 +46,7 @@ if (args.Length > 0 && args[0] == "seed-password")
     var seedKeyForCli = builder.Configuration["Seed:HmacKey"];
     if (string.IsNullOrEmpty(seedKeyForCli))
     {
-        Console.WriteLine("Seed:HmacKey is not configured. Set it via user-secrets, the Seed__HmacKey env var, or AWS Secrets Manager.");
+        Console.WriteLine("Seed:HmacKey is not configured. Set it via user-secrets, the Seed__HmacKey env var, or AWS SSM Parameter Store.");
         return;
     }
 
@@ -88,15 +88,15 @@ builder.Services
 
 // JWT authentication
 var jwtKey = builder.Configuration["Jwt:Key"]
-    ?? throw new InvalidOperationException("Jwt:Key is missing — set it via user-secrets or AWS Secrets Manager.");
+    ?? throw new InvalidOperationException("Jwt:Key is missing — set it via user-secrets or AWS SSM Parameter Store.");
 if (jwtKey.Length < 32)
-    throw new InvalidOperationException($"Jwt:Key must be at least 32 characters (got {jwtKey.Length}). Use user-secrets or Secrets Manager.");
+    throw new InvalidOperationException($"Jwt:Key must be at least 32 characters (got {jwtKey.Length}). Use user-secrets or SSM Parameter Store.");
 
 // Seed HMAC key — the secret that makes the seeded admin's daily password unguessable. Fail-closed
 // (like Jwt:Key): the seeded admin must never fall back to a source-derivable credential.
 var seedHmacKey = builder.Configuration["Seed:HmacKey"];
 if (string.IsNullOrEmpty(seedHmacKey) || seedHmacKey.Length < 32)
-    throw new InvalidOperationException("Seed:HmacKey is missing or shorter than 32 characters — set it via user-secrets, the Seed__HmacKey env var, or AWS Secrets Manager.");
+    throw new InvalidOperationException("Seed:HmacKey is missing or shorter than 32 characters — set it via user-secrets, the Seed__HmacKey env var, or AWS SSM Parameter Store.");
 
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "VoltsCRM";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "VoltsCRM";

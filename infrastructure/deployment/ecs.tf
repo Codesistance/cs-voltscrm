@@ -30,7 +30,9 @@ resource "aws_iam_role_policy_attachment" "ecs_execution" {
 }
 
 # The execution role (not the task role) injects `secrets` valueFrom into containers at launch,
-# so it needs GetSecretValue on the secrets referenced by the task definitions below.
+# so it needs GetParameters on the SSM parameters referenced by the task definitions below.
+# SecureString parameters use the default `alias/aws/ssm` KMS key, which the ECS agent can decrypt
+# without an explicit kms:Decrypt grant.
 resource "aws_iam_role_policy" "ecs_execution_secrets" {
   name = "secrets-injection"
   role = aws_iam_role.ecs_execution.id
@@ -38,11 +40,11 @@ resource "aws_iam_role_policy" "ecs_execution_secrets" {
     Version = "2012-10-17"
     Statement = [{
       Effect = "Allow"
-      Action = ["secretsmanager:GetSecretValue"]
+      Action = ["ssm:GetParameters"]
       Resource = [
-        aws_secretsmanager_secret.db.arn,
-        aws_secretsmanager_secret.jwt_key.arn,
-        aws_secretsmanager_secret.seed_hmac_key.arn,
+        aws_ssm_parameter.db_connection_string.arn,
+        aws_ssm_parameter.jwt_key.arn,
+        aws_ssm_parameter.seed_hmac_key.arn,
       ]
     }]
   })
@@ -61,13 +63,13 @@ resource "aws_iam_role_policy" "ecs_task_secrets" {
     Statement = [{
       Effect = "Allow"
       Action = [
-        "secretsmanager:GetSecretValue",
-        "secretsmanager:DescribeSecret",
+        "ssm:GetParameter",
+        "ssm:GetParameters",
       ]
       Resource = [
-        aws_secretsmanager_secret.db.arn,
-        aws_secretsmanager_secret.jwt_key.arn,
-        aws_secretsmanager_secret.seed_hmac_key.arn,
+        aws_ssm_parameter.db_connection_string.arn,
+        aws_ssm_parameter.jwt_key.arn,
+        aws_ssm_parameter.seed_hmac_key.arn,
       ]
     }]
   })
@@ -163,9 +165,9 @@ resource "aws_ecs_task_definition" "api" {
 
     # Secret values are injected by the execution role at launch (see ecs_execution_secrets).
     secrets = [
-      { name = "ConnectionStrings__DefaultConnection", valueFrom = "${aws_secretsmanager_secret.db.arn}:connectionString::" },
-      { name = "Jwt__Key", valueFrom = aws_secretsmanager_secret.jwt_key.arn },
-      { name = "Seed__HmacKey", valueFrom = aws_secretsmanager_secret.seed_hmac_key.arn },
+      { name = "ConnectionStrings__DefaultConnection", valueFrom = aws_ssm_parameter.db_connection_string.arn },
+      { name = "Jwt__Key", valueFrom = aws_ssm_parameter.jwt_key.arn },
+      { name = "Seed__HmacKey", valueFrom = aws_ssm_parameter.seed_hmac_key.arn },
     ]
 
     logConfiguration = {
@@ -237,7 +239,7 @@ resource "aws_ecs_task_definition" "worker" {
     ]
 
     secrets = [
-      { name = "ConnectionStrings__DefaultConnection", valueFrom = "${aws_secretsmanager_secret.db.arn}:connectionString::" },
+      { name = "ConnectionStrings__DefaultConnection", valueFrom = aws_ssm_parameter.db_connection_string.arn },
     ]
 
     logConfiguration = {
