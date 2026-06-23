@@ -43,7 +43,10 @@ These steps create things Terraform can't bootstrap itself or that depend on ext
    terraform apply -var-file=../environment/production.tfvars
    ```
    The `db`, `jwt-key`, and `seed-hmac-key` secrets are created with `REPLACE_AFTER_FIRST_APPLY`
-   placeholders.
+   placeholders. Their deletion-recovery window is set by `secrets_recovery_window_in_days`
+   (default `0` = immediate deletion, no recovery window), so a `terraform destroy` followed by a
+   re-apply won't be blocked by a name still "scheduled for deletion". Set it to `7`–`30` for a
+   hardened production stack that wants a recovery window.
 
 4. **Set the real secret values.** After RDS exists, read its endpoint
    (`terraform output rds_endpoint`) and set both secrets:

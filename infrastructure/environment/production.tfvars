@@ -44,6 +44,13 @@ jwt_audience              = "VoltsCRM"
 jwt_access_expiry_minutes = 15
 jwt_refresh_expiry_days   = 7
 
+# ── Secrets ───────────────────────────────────────────────────────────────────
+# Recovery window for Secrets Manager secrets on destroy. 0 = immediate delete
+# (a destroy + re-apply isn't blocked by a name still scheduled for deletion);
+# 7–30 keeps a recovery window. Bump this for hardened production if desired.
+
+secrets_recovery_window_in_days = 0
+
 # ── CloudFront ────────────────────────────────────────────────────────────────
 
 cloudfront_price_class = "PriceClass_100"
