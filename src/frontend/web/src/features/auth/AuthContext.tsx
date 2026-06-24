@@ -30,8 +30,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let active = true
     void (async () => {
       try {
-        const { accessToken } = await authApi.refresh()
+        const { accessToken, refreshToken } = await authApi.refresh()
         tokenStore.set(accessToken)
+        tokenStore.setRefresh(refreshToken)
         const me = await authApi.me()
         if (!active) return
         setUser(me)
@@ -51,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = useCallback(async (email: string, password: string) => {
     const res = await authApi.login(email, password)
     tokenStore.set(res.accessToken)
+    tokenStore.setRefresh(res.refreshToken)
     setUser(res.user)
     setStatus('authenticated')
   }, [])

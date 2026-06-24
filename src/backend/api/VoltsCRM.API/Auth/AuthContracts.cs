@@ -12,9 +12,14 @@ public sealed record AuthUserDto(
     bool MustChangePassword,
     bool IsSuperAdmin);
 
-public sealed record LoginResponse(string AccessToken, int ExpiresIn, AuthUserDto User);
+// RefreshToken is populated only in cookie-less mode (AuthOptions.RefreshTokenInBody);
+// otherwise it stays null and the token rides in the httpOnly refresh cookie.
+public sealed record LoginResponse(string AccessToken, int ExpiresIn, AuthUserDto User, string? RefreshToken = null);
 
-public sealed record RefreshResponse(string AccessToken, int ExpiresIn);
+public sealed record RefreshResponse(string AccessToken, int ExpiresIn, string? RefreshToken = null);
+
+// Body sent to /auth/refresh (and /auth/logout) in cookie-less mode.
+public sealed record RefreshRequest(string? RefreshToken);
 
 public sealed record SetPasswordRequest(string Email, string Token, string NewPassword);
 

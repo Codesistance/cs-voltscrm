@@ -26,21 +26,6 @@ provider "aws" {
   }
 }
 
-# CloudFront and any ACM certificate it uses must live in us-east-1, so the CDN
-# stack is pinned to this provider rather than the region-parameterized default.
-provider "aws" {
-  alias  = "us_east_1"
-  region = "us-east-1"
-
-  default_tags {
-    tags = {
-      Application = "VoltsCRM"
-      Environment = var.environment
-      ManagedBy   = "Terraform"
-    }
-  }
-}
-
 locals {
   prefix = "${var.app_name}-${var.environment}"
 

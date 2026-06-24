@@ -1,7 +1,9 @@
 namespace VoltsCRM.Integration.Tests;
 
 /// <summary>Minimal mirrors of the API response contracts for deserialization in tests.</summary>
-public sealed record LoginResponseDto(string AccessToken, int ExpiresIn, AuthUserDtoT User);
+public sealed record LoginResponseDto(string AccessToken, int ExpiresIn, AuthUserDtoT User, string? RefreshToken = null);
+
+public sealed record RefreshResponseDto(string AccessToken, int ExpiresIn, string? RefreshToken = null);
 
 public sealed record AuthUserDtoT(
     string Id,

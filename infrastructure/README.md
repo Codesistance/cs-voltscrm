@@ -26,17 +26,28 @@ These steps create things Terraform can't bootstrap itself or that depend on ext
    terraform init \
      -backend-config="bucket=<state-bucket>" \
      -backend-config="dynamodb_table=<lock-table>" \
-     -backend-config="region=us-east-1"
+     -backend-config="region=eu-west-1"
    ```
 
-2. **TLS certificate.** Request an ACM certificate **in `us-east-1`** for the API + app domains,
-   validate it, and set `acm_certificate_arn` in `production.tfvars`. Also set
-   `cors_allowed_origins`, `ses_domain`, and `ses_from_address`.
+2. **Edge topology — `use_custom_domain`.** One switch in `production.tfvars` selects how the SPA and
+   API are exposed:
 
-   > `acm_certificate_arn` is optional (defaults to `""`). When set, the ALB serves the API over
-   > HTTPS on port 443 and redirects port 80 to it. When left empty, no HTTPS listener is created
-   > and port 80 forwards straight to the API target group — useful for bringing the stack up before
-   > a cert is issued, but **don't run production traffic over plain HTTP**.
+   | | `use_custom_domain = false` (default, bring-up) | `use_custom_domain = true` (production) |
+   |---|---|---|
+   | SPA | S3 **static-website** endpoint over HTTP (`terraform output spa_url`) | CloudFront under `app_domain` (`cloudfront_acm_certificate_arn`) |
+   | API | Plain HTTP on the ALB's auto DNS name (`terraform output api_base_url`) | Same-origin `app_domain/api` — CloudFront forwards `/api/*` to the ALB (HTTPS, `acm_certificate_arn`) |
+   | Auth | **Cookie-less** refresh (token in body, stored client-side) | Secure httpOnly refresh cookie (`Secure`/`SameSite=Strict`) |
+   | CORS | API allows the S3 website origin automatically | Not needed — SPA and API share `app_domain` |
+
+   > **`false`** needs nothing extra and works on accounts **not yet verified for CloudFront** (the
+   > original `CreateDistribution` 403). It's for bring-up/smoke-testing — the SPA and API are plain
+   > HTTP and the refresh token is reachable by JS, so **don't run production traffic this way**.
+   >
+   > **`true`** requires two ACM certs — `acm_certificate_arn` (API/ALB) in the ALB's region
+   > (**`eu-west-1`**, and it must cover `api_domain`) and `cloudfront_acm_certificate_arn` (SPA) in
+   > **`us-east-1`** (a CloudFront requirement) — plus `app_domain` and `api_domain`. Validate the
+   > certs first. CloudFront serves the SPA at `app_domain` and forwards `/api/*` to the ALB, so the
+   > app is single-origin and needs no CORS. Also set `ses_domain` and `ses_from_address` in both modes.
 
 3. **First apply.**
    ```bash
@@ -83,8 +94,13 @@ These steps create things Terraform can't bootstrap itself or that depend on ext
    New SES accounts start in the sandbox — request production access to send to unverified
    recipients.
 
-6. **Point DNS.** CNAME the app subdomain at `terraform output cloudfront_domain` and the API
-   subdomain at `terraform output alb_dns_name` (DNS is managed externally — no Route 53).
+6. **Reach the app / point DNS.**
+   - **`use_custom_domain = false`:** open `terraform output spa_url` (the S3 website endpoint); the
+     SPA already talks to the API at `terraform output api_base_url`. No DNS to configure.
+   - **`use_custom_domain = true`:** CNAME `app_domain` at `terraform output cloudfront_domain` and
+     `api_domain` at `terraform output alb_dns_name` (DNS is managed externally — no Route 53). Users
+     only ever visit `app_domain`; `api_domain` is just the CloudFront → ALB origin hop, so the SPA's
+     `/api` calls stay same-origin.
 
 ## CI/CD
 
@@ -103,7 +119,7 @@ AWS auth is intentionally **not** provisioned by this repo. Wire it yourself, th
 | Kind | Name | Purpose |
 |---|---|---|
 | Secret | `AWS_DEPLOY_ROLE_ARN` | IAM role assumed by the deploy job (OIDC) |
-| Variable | `AWS_REGION` | e.g. `us-east-1` |
+| Variable | `AWS_REGION` | e.g. `eu-west-1` |
 | Variable | `TF_BACKEND_BUCKET` | Terraform state bucket |
 | Variable | `TF_BACKEND_DYNAMODB_TABLE` | Terraform lock table |
 

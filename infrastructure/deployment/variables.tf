@@ -105,8 +105,9 @@ variable "db_username" {
 # ── API configuration ─────────────────────────────────────────────────────────
 
 variable "cors_allowed_origins" {
-  description = "Comma-separated list of allowed CORS origins"
+  description = "Allowed CORS origin for the SPA when use_custom_domain = true (e.g. https://app.example.com). When use_custom_domain = false this is ignored and the S3 website endpoint is used instead."
   type        = string
+  default     = ""
 }
 
 variable "jwt_issuer" {
@@ -133,10 +134,41 @@ variable "jwt_refresh_expiry_days" {
   default     = 7
 }
 
-# ── TLS ───────────────────────────────────────────────────────────────────────
+# ── Custom domain / TLS ───────────────────────────────────────────────────────
+# Single switch for the edge topology:
+#   true  → CloudFront serves the SPA from a private S3 bucket under app_domain
+#           (cloudfront_acm_certificate_arn), and the ALB serves the API over HTTPS
+#           (acm_certificate_arn). Auth keeps its secure httpOnly refresh cookie.
+#   false → no CloudFront. The SPA is served from an S3 static-website endpoint and
+#           the API runs over plain HTTP on the ALB's auto-generated DNS name. Auth
+#           switches to a cookie-less (body) refresh so it works cross-origin over HTTP.
+
+variable "use_custom_domain" {
+  description = "When true, provision the CloudFront SPA edge + ALB HTTPS under custom domains. When false, serve the SPA from S3 static-website hosting and the API over plain HTTP on the ALB's auto-generated DNS name."
+  type        = bool
+  default     = false
+}
 
 variable "acm_certificate_arn" {
-  description = "ARN of an ACM certificate in us-east-1 for the ALB HTTPS listener. When empty, the ALB serves traffic over plain HTTP on port 80 instead."
+  description = "ARN of an ACM certificate in the ALB's region (var.aws_region, e.g. eu-west-1) for the ALB HTTPS listener (API domain). Required when use_custom_domain = true; ignored otherwise."
+  type        = string
+  default     = ""
+}
+
+variable "cloudfront_acm_certificate_arn" {
+  description = "ARN of an ACM certificate in us-east-1 (a CloudFront requirement) for the CloudFront SPA distribution (covers app_domain). Required when use_custom_domain = true; ignored otherwise."
+  type        = string
+  default     = ""
+}
+
+variable "app_domain" {
+  description = "Custom domain for the SPA, set as the CloudFront alias (e.g. app.example.com). Required when use_custom_domain = true; ignored otherwise."
+  type        = string
+  default     = ""
+}
+
+variable "api_domain" {
+  description = "Hostname for the CloudFront → ALB origin hop (e.g. api.example.com). CNAME it to the ALB and ensure acm_certificate_arn covers it. The SPA still calls the API same-origin at app_domain/api; this name is only the origin hop. Required when use_custom_domain = true; ignored otherwise."
   type        = string
   default     = ""
 }

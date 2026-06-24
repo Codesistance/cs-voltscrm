@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using VoltsCRM.API.Setup;
@@ -18,7 +19,8 @@ namespace VoltsCRM.Integration.Tests;
 public sealed class CustomWebApplicationFactory(
     string masterConnectionString,
     string? testName = null,
-    FakeEmailSender? fakeEmailSender = null)
+    FakeEmailSender? fakeEmailSender = null,
+    IReadOnlyDictionary<string, string?>? extraConfig = null)
     : WebApplicationFactory<Program>, IAsyncLifetime
 {
     /// <summary>Test signing key — must be ≥32 chars to satisfy the startup guard in Program.cs.</summary>
@@ -43,6 +45,11 @@ public sealed class CustomWebApplicationFactory(
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
+
+        // Per-factory config overrides (e.g. Auth:RefreshTokenInBody). Safe via in-memory source
+        // because these are read at request time (IOptions), not during builder setup like Jwt:Key.
+        if (extraConfig is { Count: > 0 })
+            builder.ConfigureAppConfiguration(cfg => cfg.AddInMemoryCollection(extraConfig));
 
         if (fakeEmailSender is not null)
         {

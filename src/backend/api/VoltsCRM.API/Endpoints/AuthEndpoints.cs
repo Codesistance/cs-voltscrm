@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Security.Claims;
 using VoltsCRM.API.Auth;
 using VoltsCRM.Application.Authorization;
@@ -36,6 +37,7 @@ public static class AuthEndpoints
         IPermissionResolver permissionResolver,
         AppDbContext db,
         HttpContext http,
+        IOptions<AuthOptions> authOptions,
         CancellationToken ct)
     {
         var user = await userManager.FindByEmailAsync(request.Email);
@@ -56,7 +58,9 @@ public static class AuthEndpoints
         });
         await db.SaveChangesAsync(ct);
 
-        SetRefreshCookie(http, refresh.Value, refresh.ExpiresAt);
+        var inBody = authOptions.Value.RefreshTokenInBody;
+        if (!inBody)
+            SetRefreshCookie(http, refresh.Value, refresh.ExpiresAt);
 
         return Results.Ok(new LoginResponse(
             access.Value,
@@ -69,18 +73,22 @@ public static class AuthEndpoints
                 roles.ToList(),
                 permissions.ToList(),
                 user.MustChangePassword,
-                isSuperAdmin)));
+                isSuperAdmin),
+            inBody ? refresh.Value : null));
     }
 
     private static async Task<IResult> RefreshAsync(
+        RefreshRequest request,
         UserManager<AppUser> userManager,
         ITokenService tokenService,
         IPermissionResolver permissionResolver,
         AppDbContext db,
         HttpContext http,
+        IOptions<AuthOptions> authOptions,
         CancellationToken ct)
     {
-        var raw = http.Request.Cookies[RefreshCookie];
+        var inBody = authOptions.Value.RefreshTokenInBody;
+        var raw = inBody ? request.RefreshToken : http.Request.Cookies[RefreshCookie];
         if (string.IsNullOrEmpty(raw))
             return Results.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Missing refresh token.");
 
@@ -105,18 +113,22 @@ public static class AuthEndpoints
         var roles = await userManager.GetRolesAsync(user);
         var permissions = await permissionResolver.GetPermissionsAsync(user.Id, ct);
         var access = tokenService.CreateAccessToken(user, roles, permissions);
-        SetRefreshCookie(http, next.Value, next.ExpiresAt);
+        if (!inBody)
+            SetRefreshCookie(http, next.Value, next.ExpiresAt);
 
-        return Results.Ok(new RefreshResponse(access.Value, access.ExpiresInSeconds));
+        return Results.Ok(new RefreshResponse(access.Value, access.ExpiresInSeconds, inBody ? next.Value : null));
     }
 
     private static async Task<IResult> LogoutAsync(
+        RefreshRequest? request,
         ITokenService tokenService,
         AppDbContext db,
         HttpContext http,
+        IOptions<AuthOptions> authOptions,
         CancellationToken ct)
     {
-        var raw = http.Request.Cookies[RefreshCookie];
+        var inBody = authOptions.Value.RefreshTokenInBody;
+        var raw = inBody ? request?.RefreshToken : http.Request.Cookies[RefreshCookie];
         if (!string.IsNullOrEmpty(raw))
         {
             var hash = tokenService.Hash(raw);
@@ -128,7 +140,8 @@ public static class AuthEndpoints
             }
         }
 
-        DeleteRefreshCookie(http);
+        if (!inBody)
+            DeleteRefreshCookie(http);
         return Results.NoContent();
     }
 

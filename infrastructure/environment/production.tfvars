@@ -1,17 +1,27 @@
 app_name    = "voltscrm"
 environment = "production"
-aws_region  = "us-east-1"
+aws_region  = "eu-west-1"
 
 # ── Networking ────────────────────────────────────────────────────────────────
 
 vpc_cidr = "10.0.0.0/16"
 
-# ── TLS ───────────────────────────────────────────────────────────────────────
-# Issue an ACM certificate for your domain (must be in us-east-1 for ALB)
-# then paste the ARN here. Optional: leave empty to serve the API over plain
-# HTTP on port 80 (no HTTPS listener) — for bring-up only, not production traffic.
+# ── Custom domain / TLS ───────────────────────────────────────────────────────
+# Single switch for the edge topology:
+#   false → no CloudFront (unblocks accounts not yet CloudFront-verified). The SPA is
+#           served from an S3 static-website endpoint and the API over plain HTTP on the
+#           ALB's auto-generated DNS name. Auth uses a cookie-less (body) refresh.
+#           Reach the app at `terraform output spa_url` / `api_base_url`. Bring-up only.
+#   true  → CloudFront serves the SPA under app_domain (cloudfront_acm_certificate_arn)
+#           and the ALB serves the API over HTTPS (acm_certificate_arn). The ALB cert must
+#           be in the ALB's region (eu-west-1); the CloudFront cert must be in us-east-1
+#           (a CloudFront requirement). Then CNAME the app/api subdomains at the outputs.
 
-acm_certificate_arn = ""
+use_custom_domain              = false
+acm_certificate_arn            = "" # ALB / API cert (eu-west-1, must cover api_domain) — required when true
+cloudfront_acm_certificate_arn = "" # CloudFront / SPA cert (us-east-1)                 — required when true
+app_domain                     = "" # SPA host, e.g. app.yourdomain.com                — required when true
+api_domain                     = "" # CloudFront→ALB origin host, e.g. api.yourdomain.com — required when true
 
 # ── Container images ──────────────────────────────────────────────────────────
 

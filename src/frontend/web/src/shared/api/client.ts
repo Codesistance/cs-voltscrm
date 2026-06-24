@@ -1,17 +1,20 @@
 import axios from 'axios'
+import { config } from '@/app/config'
 import { tokenStore } from './tokenStore'
 
 export const apiClient = axios.create({
-  baseURL: '/api',
+  baseURL: config.apiBase,
   headers: { 'Content-Type': 'application/json' },
-  withCredentials: true, // sends httpOnly refresh-token cookie automatically
+  // Cookie mode sends the httpOnly refresh-token cookie automatically; body mode carries
+  // the refresh token in the request body instead, so credentials aren't needed.
+  withCredentials: !config.refreshInBody,
   timeout: 15_000,
 })
 
-apiClient.interceptors.request.use((config) => {
+apiClient.interceptors.request.use((req) => {
   const token = tokenStore.get()
-  if (token) config.headers.Authorization = `Bearer ${token}`
-  return config
+  if (token) req.headers.Authorization = `Bearer ${token}`
+  return req
 })
 
 apiClient.interceptors.response.use(
@@ -26,9 +29,14 @@ apiClient.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthRoute) {
       originalRequest._retry = true
       try {
-        // Attempt silent refresh using the httpOnly cookie
-        const { data } = await axios.post('/api/auth/refresh', {}, { withCredentials: true })
+        // Attempt silent refresh — via the httpOnly cookie, or the stored token in body mode.
+        const { data } = await axios.post(
+          `${config.apiBase}/auth/refresh`,
+          config.refreshInBody ? { refreshToken: tokenStore.getRefresh() } : {},
+          { withCredentials: !config.refreshInBody },
+        )
         tokenStore.set(data.accessToken)
+        tokenStore.setRefresh(data.refreshToken)
         originalRequest.headers.Authorization = `Bearer ${data.accessToken}`
         return apiClient(originalRequest)
       } catch {

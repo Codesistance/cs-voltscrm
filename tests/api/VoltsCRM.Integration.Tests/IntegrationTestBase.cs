@@ -17,9 +17,12 @@ public abstract class IntegrationTestBase(SharedTestContainersFixture fixture) :
     /// <summary>Used to name the isolated database for easier debugging.</summary>
     protected abstract string TestName { get; }
 
+    /// <summary>Per-test config overrides applied to the booted API (e.g. Auth:RefreshTokenInBody).</summary>
+    protected virtual IReadOnlyDictionary<string, string?>? ExtraConfig => null;
+
     public async ValueTask InitializeAsync()
     {
-        Factory = new CustomWebApplicationFactory(fixture.PostgresConnectionString, TestName);
+        Factory = new CustomWebApplicationFactory(fixture.PostgresConnectionString, TestName, extraConfig: ExtraConfig);
         await Factory.InitializeAsync();
         Client = Factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
     }

@@ -154,7 +154,11 @@ resource "aws_ecs_task_definition" "api" {
       { name = "Jwt__Audience", value = var.jwt_audience },
       { name = "Jwt__AccessTokenExpiryMinutes", value = tostring(var.jwt_access_expiry_minutes) },
       { name = "Jwt__RefreshTokenExpiryDays", value = tostring(var.jwt_refresh_expiry_days) },
-      { name = "Cors__AllowedOrigins", value = var.cors_allowed_origins },
+      # Bound as Cors:AllowedOrigins[] — must be the indexed key, not a scalar. In the
+      # auto-FQDN branch the SPA calls the API cross-origin from the S3 website endpoint.
+      { name = "Cors__AllowedOrigins__0", value = var.use_custom_domain ? var.cors_allowed_origins : "http://${one(aws_s3_bucket_website_configuration.spa[*].website_endpoint)}" },
+      # Cookie-less (body) refresh when there's no HTTPS same-origin context (auto-FQDN branch).
+      { name = "Auth__RefreshTokenInBody", value = tostring(!var.use_custom_domain) },
       { name = "Aws__Region", value = var.aws_region },
       { name = "Aws__AssetsBucket", value = aws_s3_bucket.assets.bucket },
       { name = "Redis__Configuration", value = "${aws_elasticache_replication_group.main.primary_endpoint_address}:6379" },

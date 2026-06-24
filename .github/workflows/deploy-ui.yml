@@ -43,16 +43,9 @@ jobs:
 
       - run: npm ci
       - run: npm run lint
+      # CI build validates lint + typecheck + bundling. The deploy job rebuilds against the
+      # deployed topology (VITE_API_BASE / VITE_REFRESH_IN_BODY from Terraform outputs).
       - run: npm run build
-
-      # Hand the build to the deploy job so it isn't rebuilt (main only).
-      - name: Upload SPA build
-        if: github.ref == 'refs/heads/main'
-        uses: actions/upload-artifact@v4
-        with:
-          name: spa-dist
-          path: src/frontend/web/dist
-          retention-days: 1
 
   # ── CD: deploy only on main, after build passes ────────────────────────────────
   deploy:
@@ -72,13 +65,10 @@ jobs:
           role-to-assume: arn:aws:iam::776051123142:role/codesistance-github-terraform
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Download SPA build
-        uses: actions/download-artifact@v4
-        with:
-          name: spa-dist
-          path: src/frontend/web/dist
-
-      # ── Read resource names from Terraform state (read-only, no apply) ─────────
+      # ── Read resource names + topology from Terraform state (read-only, no apply) ─
+      # The SPA must be built against the deployed topology: in the auto-FQDN branch it
+      # calls the API cross-origin at an absolute URL and uses cookie-less refresh, so we
+      # read the outputs first and bake them into the build (rather than reusing the CI artifact).
       - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: "1.9.8"
@@ -91,10 +81,44 @@ jobs:
             -backend-config="dynamodb_table=${TF_LOCK_TABLE}" \
             -backend-config="region=${AWS_REGION}"
 
-      - name: Sync SPA to S3 & invalidate CloudFront
+      - name: Read Terraform outputs
+        id: tf
         working-directory: infrastructure/deployment
         run: |
-          SPA_BUCKET=$(terraform output -raw spa_bucket)
-          DIST_ID=$(terraform output -raw cloudfront_distribution_id)
+          {
+            echo "spa_bucket=$(terraform output -raw spa_bucket)"
+            echo "api_base_url=$(terraform output -raw api_base_url)"
+            echo "use_custom_domain=$(terraform output -raw use_custom_domain)"
+            echo "cloudfront_distribution_id=$(terraform output -raw cloudfront_distribution_id 2>/dev/null || true)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: src/frontend/web/package-lock.json
+
+      - name: Build SPA against the deployed topology
+        working-directory: src/frontend/web
+        env:
+          VITE_API_BASE: ${{ steps.tf.outputs.api_base_url }}
+          # Cookie-less refresh whenever the custom-domain edge is off (cross-origin over HTTP).
+          VITE_REFRESH_IN_BODY: ${{ steps.tf.outputs.use_custom_domain == 'false' }}
+        run: |
+          npm ci
+          npm run build
+
+      - name: Sync SPA to S3 & invalidate CloudFront
+        env:
+          SPA_BUCKET: ${{ steps.tf.outputs.spa_bucket }}
+          # Empty in the auto-FQDN branch — the SPA bucket lives in AWS_REGION (eu-west-1), so the
+          # S3 website endpoint and this sync both target it directly.
+          DIST_ID: ${{ steps.tf.outputs.cloudfront_distribution_id }}
+        run: |
           aws s3 sync "$GITHUB_WORKSPACE/src/frontend/web/dist/" "s3://$SPA_BUCKET/" --delete
-          aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"
+          if [ -n "$DIST_ID" ]; then
+            aws cloudfront create-invalidation --distribution-id "$DIST_ID" --paths "/*"
+          else
+            echo "No CloudFront distribution (use_custom_domain=false) — skipping invalidation."
+          fi

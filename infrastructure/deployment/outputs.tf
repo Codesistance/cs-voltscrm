@@ -1,11 +1,26 @@
 output "alb_dns_name" {
-  description = "DNS name of the API load balancer — point your API subdomain CNAME here"
+  description = "DNS name of the API load balancer — point your API subdomain CNAME here (custom-domain branch)"
   value       = aws_lb.api.dns_name
 }
 
+output "use_custom_domain" {
+  description = "Whether the custom-domain edge (CloudFront + ALB HTTPS) is provisioned"
+  value       = var.use_custom_domain
+}
+
+output "spa_url" {
+  description = "Public URL of the SPA — CloudFront/app domain (custom branch) or the S3 static-website endpoint (auto-FQDN branch)"
+  value       = var.use_custom_domain ? "https://${var.app_domain}" : "http://${one(aws_s3_bucket_website_configuration.spa[*].website_endpoint)}"
+}
+
 output "cloudfront_domain" {
-  description = "CloudFront domain for the SPA — point your app subdomain CNAME here"
-  value       = aws_cloudfront_distribution.spa.domain_name
+  description = "CloudFront distribution domain (e.g. d123.cloudfront.net) — CNAME app_domain here. Null in the auto-FQDN branch."
+  value       = one(aws_cloudfront_distribution.spa[*].domain_name)
+}
+
+output "api_base_url" {
+  description = "API base the SPA should call (VITE_API_BASE). Custom branch keeps the original same-origin relative /api; auto-FQDN branch uses the ALB DNS name over HTTP cross-origin."
+  value       = var.use_custom_domain ? "/api" : "http://${aws_lb.api.dns_name}/api"
 }
 
 output "ecr_api_url" {
@@ -55,8 +70,8 @@ output "spa_bucket" {
 }
 
 output "cloudfront_distribution_id" {
-  description = "CloudFront distribution ID — used by the deploy pipeline to create invalidations"
-  value       = aws_cloudfront_distribution.spa.id
+  description = "CloudFront distribution ID — used by the deploy pipeline to create invalidations. Null in the auto-FQDN branch (no CloudFront)."
+  value       = one(aws_cloudfront_distribution.spa[*].id)
 }
 
 # ── Consumed by the deploy pipeline's migration run-task ───────────────────────

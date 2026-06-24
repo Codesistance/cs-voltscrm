@@ -22,7 +22,9 @@ resource "aws_lb_target_group" "api" {
 }
 
 locals {
-  tls_enabled = var.acm_certificate_arn != ""
+  # HTTPS on the ALB only in the custom-domain branch — the auto-generated
+  # *.elb.amazonaws.com name can't carry an ACM cert, so it serves plain HTTP.
+  tls_enabled = var.use_custom_domain
 }
 
 # Port 80: redirect to HTTPS when a cert is configured, otherwise forward

@@ -76,6 +76,7 @@ builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection(JwtOptions.SectionName));
+builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOptions.SectionName));
 builder.Services.Configure<BillingOptions>(builder.Configuration.GetSection(BillingOptions.SectionName));
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.SectionName));
