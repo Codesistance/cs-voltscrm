@@ -18,11 +18,6 @@ permissions:
   id-token: write
   contents: read
 
-env:
-  AWS_REGION: eu-west-1
-  TF_STATE_BUCKET: voltscrm-tfstate-776051123142
-  TF_LOCK_TABLE: voltscrm-tfstate-lock
-
 jobs:
   # ── CI: always runs (push, PR, dispatch) ───────────────────────────────────────
   build:
@@ -59,10 +54,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Load CI env
+        run: cat .github/ci.env >> "$GITHUB_ENV"
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: arn:aws:iam::776051123142:role/codesistance-github-terraform
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       # ── Read resource names + topology from Terraform state (read-only, no apply) ─

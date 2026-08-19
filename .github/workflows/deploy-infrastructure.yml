@@ -19,10 +19,7 @@ permissions:
   contents: read
 
 env:
-  AWS_REGION: eu-west-1
   TF_VAR_FILE: ../environment/production.tfvars
-  TF_STATE_BUCKET: voltscrm-tfstate-776051123142
-  TF_LOCK_TABLE: voltscrm-tfstate-lock
 
 jobs:
   # ── CI: validate + plan on every relevant change (push, PR, dispatch) ──────────
@@ -35,10 +32,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Load CI env
+        run: cat .github/ci.env >> "$GITHUB_ENV"
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: arn:aws:iam::776051123142:role/codesistance-github-terraform
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       # Ensure the remote-state backend exists before init (idempotent: creates if
@@ -73,10 +73,13 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Load CI env
+        run: cat .github/ci.env >> "$GITHUB_ENV"
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v6
         with:
-          role-to-assume: arn:aws:iam::776051123142:role/codesistance-github-terraform
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Bootstrap Terraform backend (S3 + DynamoDB)
