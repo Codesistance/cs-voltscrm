@@ -34,7 +34,7 @@ public class PaymentGatewaySettingsTests(SharedTestContainersFixture fixture) : 
         var response = await GetAsync(Endpoint, Admin());
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
-        var configs = await response.Content.ReadFromJsonAsync<List<ConfigDtoT>>();
+        var configs = await response.Content.ReadFromJsonAsync<List<ConfigDtoT>>(TestContext.Current.CancellationToken);
         Assert.NotNull(configs);
         var vp = Assert.Single(configs, c => c.KeyName == "voltspayments");
         Assert.True(vp.Implemented);
@@ -51,12 +51,12 @@ public class PaymentGatewaySettingsTests(SharedTestContainersFixture fixture) : 
             token);
         Assert.Equal(HttpStatusCode.OK, put.StatusCode);
 
-        var dto = await put.Content.ReadFromJsonAsync<ConfigDtoT>();
+        var dto = await put.Content.ReadFromJsonAsync<ConfigDtoT>(TestContext.Current.CancellationToken);
         Assert.NotNull(dto);
         Assert.Equal(Mask, dto.Data["apiSecret"]); // masked on the write response
 
         // And masked on subsequent reads.
-        var list = await (await GetAsync(Endpoint, token)).Content.ReadFromJsonAsync<List<ConfigDtoT>>();
+        var list = await (await GetAsync(Endpoint, token)).Content.ReadFromJsonAsync<List<ConfigDtoT>>(TestContext.Current.CancellationToken);
         var vp = Assert.Single(list!, c => c.KeyName == "voltspayments");
         Assert.Equal(Mask, vp.Data["apiSecret"]);
     }
@@ -74,7 +74,7 @@ public class PaymentGatewaySettingsTests(SharedTestContainersFixture fixture) : 
             new { displayName = "Renamed", visibility = true, data = new { apiSecret = Mask } }, token);
         Assert.Equal(HttpStatusCode.OK, put.StatusCode);
 
-        var dto = await put.Content.ReadFromJsonAsync<ConfigDtoT>();
+        var dto = await put.Content.ReadFromJsonAsync<ConfigDtoT>(TestContext.Current.CancellationToken);
         Assert.Equal("Renamed", dto!.DisplayName);
         Assert.Equal(Mask, dto.Data["apiSecret"]); // still present (not blanked)
     }
@@ -94,11 +94,11 @@ public class PaymentGatewaySettingsTests(SharedTestContainersFixture fixture) : 
 
         var off = await PutAsync($"{Endpoint}/voltspayments/visibility", new { visible = false }, token);
         Assert.Equal(HttpStatusCode.OK, off.StatusCode);
-        var dto = await off.Content.ReadFromJsonAsync<ConfigDtoT>();
+        var dto = await off.Content.ReadFromJsonAsync<ConfigDtoT>(TestContext.Current.CancellationToken);
         Assert.False(dto!.Visibility);
 
         var on = await PutAsync($"{Endpoint}/voltspayments/visibility", new { visible = true }, token);
-        dto = await on.Content.ReadFromJsonAsync<ConfigDtoT>();
+        dto = await on.Content.ReadFromJsonAsync<ConfigDtoT>(TestContext.Current.CancellationToken);
         Assert.True(dto!.Visibility);
     }
 

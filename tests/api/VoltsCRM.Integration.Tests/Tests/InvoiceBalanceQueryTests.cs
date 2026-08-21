@@ -133,7 +133,7 @@ public class InvoiceBalanceQueryTests(SharedTestContainersFixture fixture) : Int
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var summary = await response.Content.ReadFromJsonAsync<DashboardSummaryDtoT>();
+        var summary = await response.Content.ReadFromJsonAsync<DashboardSummaryDtoT>(TestContext.Current.CancellationToken);
         Assert.NotNull(summary);
         Assert.True(summary.OutstandingBalance.Amount >= expectedBalance,
             $"Outstanding balance {summary.OutstandingBalance.Amount} should be >= {expectedBalance}");
@@ -159,7 +159,7 @@ public class InvoiceBalanceQueryTests(SharedTestContainersFixture fixture) : Int
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var report = await response.Content.ReadFromJsonAsync<AgingReportDtoT>();
+        var report = await response.Content.ReadFromJsonAsync<AgingReportDtoT>(TestContext.Current.CancellationToken);
         Assert.NotNull(report);
         Assert.NotNull(report.Buckets);
         Assert.True(report.Buckets.Count >= 1, "Should have at least one aging bucket");
@@ -188,7 +188,7 @@ public class InvoiceBalanceQueryTests(SharedTestContainersFixture fixture) : Int
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var summary = await response.Content.ReadFromJsonAsync<PortalSummaryDtoT>();
+        var summary = await response.Content.ReadFromJsonAsync<PortalSummaryDtoT>(TestContext.Current.CancellationToken);
         Assert.NotNull(summary);
         Assert.Equal(expectedBalance, summary.OutstandingBalance.Amount);
         Assert.True(summary.PendingInvoices >= 1,

@@ -100,7 +100,7 @@ public class PortalProfileTests(SharedTestContainersFixture fixture) : Integrati
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var profile = await response.Content.ReadFromJsonAsync<PortalProfileDtoT>();
+        var profile = await response.Content.ReadFromJsonAsync<PortalProfileDtoT>(TestContext.Current.CancellationToken);
         Assert.NotNull(profile);
         Assert.Equal(seeded.AccountNumber, profile.AccountNumber);
         Assert.Equal("John Doe", profile.FullName);

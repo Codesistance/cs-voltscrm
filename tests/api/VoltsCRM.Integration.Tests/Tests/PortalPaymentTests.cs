@@ -78,7 +78,7 @@ public class PortalPaymentTests(SharedTestContainersFixture fixture) : Integrati
         var response = await GetAsync(GatewaysEndpoint, token);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var gateways = await response.Content.ReadFromJsonAsync<List<AvailableGatewayDtoT>>();
+        var gateways = await response.Content.ReadFromJsonAsync<List<AvailableGatewayDtoT>>(TestContext.Current.CancellationToken);
         Assert.NotNull(gateways);
         Assert.Contains(gateways, g => g.KeyName == "voltspayments");
     }
@@ -100,7 +100,7 @@ public class PortalPaymentTests(SharedTestContainersFixture fixture) : Integrati
         var response = await GetAsync(GatewaysEndpoint, token);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var gateways = await response.Content.ReadFromJsonAsync<List<AvailableGatewayDtoT>>();
+        var gateways = await response.Content.ReadFromJsonAsync<List<AvailableGatewayDtoT>>(TestContext.Current.CancellationToken);
         Assert.NotNull(gateways);
         Assert.DoesNotContain(gateways, g => g.KeyName == "voltspayments"); // hidden
         Assert.DoesNotContain(gateways, g => g.KeyName == "ghostpay");      // not implemented
@@ -117,7 +117,7 @@ public class PortalPaymentTests(SharedTestContainersFixture fixture) : Integrati
             new { invoiceId = seeded.InvoiceId, gatewayKey = "voltspayments" }, token);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var result = await response.Content.ReadFromJsonAsync<InitiateResultDtoT>();
+        var result = await response.Content.ReadFromJsonAsync<InitiateResultDtoT>(TestContext.Current.CancellationToken);
         Assert.NotNull(result);
         Assert.Equal("Completed", result.Status);
         Assert.NotEqual(Guid.Empty, result.PaymentId);
