@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ApiError } from '@/shared/api/http'
 import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
 import { ErrorState } from '@/shared/components/ErrorState'
@@ -24,6 +25,7 @@ export function AdminsPanel() {
   const [creating, setCreating] = useState(false)
   const [resetting, setResetting] = useState<AdminUserDto | null>(null)
   const [disabling, setDisabling] = useState<AdminUserDto | null>(null)
+  const [scope, setScope] = useState<'super' | 'non-super'>('super')
   const resetPasswordMut = useMutation({
     mutationFn: ({ id, newPassword }: { id: string; newPassword?: string }) => accessApi.resetPassword(id, newPassword),
   })
@@ -75,6 +77,9 @@ export function AdminsPanel() {
   if (rolesQuery.isError) return <ErrorState error={rolesQuery.error} onRetry={() => rolesQuery.refetch()} />
 
   const roleById = new Map(rolesQuery.data.map((r) => [r.id, r]))
+  const superAdmins = adminsQuery.data.filter((a) => a.isSuperAdmin)
+  const nonSuperAdmins = adminsQuery.data.filter((a) => !a.isSuperAdmin)
+  const visibleAdmins = scope === 'super' ? superAdmins : nonSuperAdmins
 
   const startEdit = (admin: AdminUserDto) => {
     setEditingId(admin.id)
@@ -91,14 +96,25 @@ export function AdminsPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between gap-2">
+        <Tabs value={scope} onValueChange={(v) => setScope(v as 'super' | 'non-super')}>
+          <TabsList>
+            <TabsTrigger value="super">Super admins ({superAdmins.length})</TabsTrigger>
+            <TabsTrigger value="non-super">Non-super admins ({nonSuperAdmins.length})</TabsTrigger>
+          </TabsList>
+        </Tabs>
         <Button size="sm" onClick={() => setCreating(true)}>
           <Plus className="size-4" /> New administrator
         </Button>
       </div>
 
+      {visibleAdmins.length === 0 ? (
+        <p className="text-sm text-muted-foreground">
+          {scope === 'super' ? 'No super admins yet.' : 'No non-super admins yet.'}
+        </p>
+      ) : (
       <div className="grid gap-4 md:grid-cols-2">
-      {adminsQuery.data.map((admin) => {
+      {visibleAdmins.map((admin) => {
         const editing = editingId === admin.id
         const isSelf = admin.userId === user?.id
         return (
@@ -210,6 +226,7 @@ export function AdminsPanel() {
         )
       })}
       </div>
+      )}
 
       <Dialog open={creating} onOpenChange={(open) => !open && setCreating(false)}>
         <DialogContent>
