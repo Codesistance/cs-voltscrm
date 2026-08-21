@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ApiError } from '@/shared/api/http'
 import { applyServerErrors } from '@/shared/lib/errors'
+import { AnimatedBackground } from '../components/AnimatedBackground'
 import { useAuth } from '../AuthContext'
 import { loginSchema, type LoginInput } from '../schema'
 
@@ -49,38 +50,45 @@ export function LoginPage() {
   })
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/40 p-4">
-      <Card className="w-full max-w-sm">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-4">
+      <AnimatedBackground />
+      <Card className="w-full max-w-sm border-white/15 bg-white/10 text-white shadow-2xl backdrop-blur-xl">
         <CardHeader className="space-y-1 text-center">
           <div className="mx-auto flex size-10 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <Zap className="size-5" />
           </div>
-          <CardTitle className="text-xl">Sign in to VoltsCRM</CardTitle>
-          <CardDescription>Enter your credentials to continue</CardDescription>
+          <CardTitle className="text-xl text-white">Sign in to VoltsCRM</CardTitle>
+          <CardDescription className="text-white/70">Enter your credentials to continue</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4" noValidate>
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-white/90">
+                Email
+              </Label>
               <Input
                 id="email"
                 type="email"
                 autoComplete="username"
                 aria-invalid={!!errors.email}
+                className="border-white/20 bg-white/10 text-white placeholder:text-white/40 focus-visible:ring-white/40"
                 {...register('email')}
               />
-              {errors.email && <p className="text-sm text-destructive">{errors.email.message}</p>}
+              {errors.email && <p className="text-sm text-red-300">{errors.email.message}</p>}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className="text-white/90">
+                Password
+              </Label>
               <Input
                 id="password"
                 type="password"
                 autoComplete="current-password"
                 aria-invalid={!!errors.password}
+                className="border-white/20 bg-white/10 text-white placeholder:text-white/40 focus-visible:ring-white/40"
                 {...register('password')}
               />
-              {errors.password && <p className="text-sm text-destructive">{errors.password.message}</p>}
+              {errors.password && <p className="text-sm text-red-300">{errors.password.message}</p>}
             </div>
             <Button type="submit" className="w-full" disabled={isSubmitting}>
               {isSubmitting ? 'Signing in…' : 'Sign in'}
