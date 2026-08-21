@@ -108,6 +108,7 @@ jobs:
       # Runs before the service roll so the schema is ready. The task def's
       # :production image was just pushed above, so this executes the new image.
       - name: Run database migrations
+        id: migrate
         working-directory: infrastructure/deployment
         run: |
           CLUSTER=$(terraform output -raw ecs_cluster_name)
@@ -124,12 +125,33 @@ jobs:
             --query 'tasks[0].taskArn' --output text)
 
           echo "Migration task: $TASK_ARN"
+          echo "cluster=$CLUSTER" >> "$GITHUB_OUTPUT"
+          echo "task_arn=$TASK_ARN" >> "$GITHUB_OUTPUT"
           aws ecs wait tasks-stopped --cluster "$CLUSTER" --tasks "$TASK_ARN"
 
           EXIT_CODE=$(aws ecs describe-tasks --cluster "$CLUSTER" --tasks "$TASK_ARN" \
             --query 'tasks[0].containers[?name==`api`].exitCode | [0]' --output text)
           echo "Migration exit code: $EXIT_CODE"
           [ "$EXIT_CODE" = "0" ]
+
+      # ── On failure, pull the actual container stdout/stderr from CloudWatch so the
+      # ── job log shows *why* the migration task died, not just its exit code.
+      - name: Dump migration task logs on failure
+        if: failure() && steps.migrate.outputs.task_arn != ''
+        working-directory: infrastructure/deployment
+        run: |
+          TASK_ID=$(basename "${{ steps.migrate.outputs.task_arn }}")
+          LOG_GROUP="/ecs/$(terraform output -raw ecs_cluster_name)/api"
+          echo "Fetching $LOG_GROUP for task $TASK_ID ..."
+          aws logs get-log-events \
+            --log-group-name "$LOG_GROUP" \
+            --log-stream-name "api/api/$TASK_ID" \
+            --output text || echo "No log stream found (container likely never started / crashed before logging)."
+          echo "--- Task stopped reason ---"
+          aws ecs describe-tasks \
+            --cluster "${{ steps.migrate.outputs.cluster }}" \
+            --tasks "${{ steps.migrate.outputs.task_arn }}" \
+            --query 'tasks[0].{stoppedReason:stoppedReason,containers:containers[*].{name:name,exitCode:exitCode,reason:reason}}'
 
       # ── Roll the ECS services onto the freshly pushed :production image ────────
       - name: Force new deployment
