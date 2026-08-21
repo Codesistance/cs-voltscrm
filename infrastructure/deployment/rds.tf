@@ -13,7 +13,7 @@ resource "aws_db_instance" "main" {
 
   db_name  = var.db_name
   username = var.db_username
-  password = aws_ssm_parameter.db_password.value
+  password = random_password.db_password.result
 
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
@@ -23,7 +23,7 @@ resource "aws_db_instance" "main" {
   skip_final_snapshot       = false
   final_snapshot_identifier = "${local.prefix}-final"
 
-  lifecycle {
-    ignore_changes = [password]
-  }
+  # Password changes (e.g. the initial random_password rollout below) must take effect
+  # immediately rather than waiting for the next maintenance window, or the app stays broken.
+  apply_immediately = true
 }
