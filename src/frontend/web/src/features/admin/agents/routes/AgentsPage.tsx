@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { Mail, Pencil, Plus, Trash2 } from 'lucide-react'
+import { KeyRound, Mail, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -12,6 +12,7 @@ import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
 import { ErrorState } from '@/shared/components/ErrorState'
 import { LoadingState } from '@/shared/components/LoadingState'
 import { PageHeader } from '@/shared/components/PageHeader'
+import { ResetPasswordDialog } from '@/shared/components/ResetPasswordDialog'
 import { LocationPicker } from '@/features/location/components/LocationPicker'
 import type { LocationInput } from '@/features/location/types'
 import { type Agent } from '../api/agentsApi'
@@ -20,6 +21,7 @@ import {
   useCreateAgent,
   useDeactivateAgent,
   useResendInvite,
+  useResetAgentPassword,
   useUpdateAgent,
 } from '../api/queries'
 
@@ -29,12 +31,14 @@ export function AgentsPage() {
   const { data: agents, isLoading, isError, error, refetch } = useAgents()
   const [editing, setEditing] = useState<Editing>(null)
   const [toDelete, setToDelete] = useState<Agent | null>(null)
+  const [resetting, setResetting] = useState<Agent | null>(null)
 
   const createMut = useCreateAgent()
   const editId = editing?.mode === 'edit' ? editing.agent.id : ''
   const updateMut = useUpdateAgent(editId)
   const deactivateMut = useDeactivateAgent()
   const resendMut = useResendInvite()
+  const resetPasswordMut = useResetAgentPassword()
 
   if (isLoading) return <LoadingState label="Loading agents…" />
   if (isError) return <ErrorState error={error} onRetry={refetch} />
@@ -79,6 +83,9 @@ export function AgentsPage() {
                       }}
                     >
                       <Mail className="size-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon-sm" title="Reset password" onClick={() => setResetting(a)}>
+                      <KeyRound className="size-4" />
                     </Button>
                     <Button variant="ghost" size="icon-sm" title="Edit" onClick={() => setEditing({ mode: 'edit', agent: a })}>
                       <Pencil className="size-4" />
@@ -141,6 +148,15 @@ export function AgentsPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {resetting && (
+        <ResetPasswordDialog
+          open={!!resetting}
+          onOpenChange={(open) => !open && setResetting(null)}
+          subjectLabel={`${resetting.firstName} ${resetting.lastName}`}
+          onReset={(newPassword) => resetPasswordMut.mutateAsync({ id: resetting.id, newPassword })}
+        />
+      )}
 
       <ConfirmDialog
         open={!!toDelete}

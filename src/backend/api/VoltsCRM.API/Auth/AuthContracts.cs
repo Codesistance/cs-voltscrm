@@ -24,3 +24,10 @@ public sealed record RefreshRequest(string? RefreshToken);
 public sealed record SetPasswordRequest(string Email, string Token, string NewPassword);
 
 public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
+
+// Admin-facing password reset (no email round trip): pass NewPassword to set a specific value, or
+// omit it to have the server generate one — returned once in the response so it can be handed to
+// the user out-of-band. Either way the account is forced to change it at next login.
+public sealed record ResetPasswordRequest(string? NewPassword);
+
+public sealed record ResetPasswordResult(string? TemporaryPassword);

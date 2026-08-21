@@ -32,6 +32,10 @@ export interface UpdateAgent {
   territory?: string | null
 }
 
+export interface ResetPasswordResult {
+  temporaryPassword: string | null
+}
+
 export const agentsApi = {
   list: () => get<Agent[]>('/agents'),
   kpis: (id: Id) => get<AgentKpis>(`/agents/${id}/kpis`),
@@ -39,4 +43,6 @@ export const agentsApi = {
   update: (id: Id, body: UpdateAgent) => put<void>(`/agents/${id}`, body),
   deactivate: (id: Id) => post<void>(`/agents/${id}/deactivate`, {}),
   resendInvite: (id: Id) => post<void>(`/agents/${id}/resend-invite`, {}),
+  resetPassword: (id: Id, newPassword?: string) =>
+    post<ResetPasswordResult>(`/agents/${id}/reset-password`, { newPassword }),
 }

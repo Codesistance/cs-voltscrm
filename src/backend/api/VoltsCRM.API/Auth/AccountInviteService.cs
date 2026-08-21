@@ -29,4 +29,29 @@ public static class AccountInviteService
 
         await email.SendAsync(user.Email!, "Set up your VoltsCRM account", body);
     }
+
+    /// <summary>
+    /// Resets a user's password directly — no email round trip — to either an admin-supplied value
+    /// or a freshly generated one, and forces a change at next login. Use when email delivery isn't
+    /// wired up (or as a same-page alternative to the invite email even when it is).
+    /// </summary>
+    /// <returns>
+    /// The generated password when <paramref name="newPassword"/> was null/empty (so the caller can
+    /// show it once), or null when the caller supplied their own value (nothing new to disclose).
+    /// </returns>
+    public static async Task<(bool Succeeded, string? GeneratedPassword, IEnumerable<IdentityError> Errors)> ResetPasswordAsync(
+        UserManager<AppUser> userManager, AppUser user, string? newPassword)
+    {
+        var generated = string.IsNullOrWhiteSpace(newPassword);
+        var password = generated ? PasswordGenerator.GenerateTemporary() : newPassword!;
+
+        var token = await userManager.GeneratePasswordResetTokenAsync(user);
+        var result = await userManager.ResetPasswordAsync(user, token, password);
+        if (!result.Succeeded)
+            return (false, null, result.Errors);
+
+        user.MustChangePassword = true;
+        await userManager.UpdateAsync(user);
+        return (true, generated ? password : null, []);
+    }
 }

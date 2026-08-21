@@ -37,6 +37,7 @@ public static class AgentEndpoints
         group.MapPut("/{id:guid}", UpdateAsync).RequirePermission(Permissions.AgentsManage);
         group.MapPost("/{id:guid}/deactivate", DeactivateAsync).RequirePermission(Permissions.AgentsManage);
         group.MapPost("/{id:guid}/resend-invite", ResendInviteAsync).RequirePermission(Permissions.AgentsManage);
+        group.MapPost("/{id:guid}/reset-password", ResetPasswordAsync).RequirePermission(Permissions.AgentsManage);
 
         return app;
     }
@@ -113,7 +114,7 @@ public static class AgentEndpoints
             MustChangePassword = true,
         };
 
-        var result = await userManager.CreateAsync(user, GenerateTemporaryPassword());
+        var result = await userManager.CreateAsync(user, PasswordGenerator.GenerateTemporary());
         if (!result.Succeeded)
             return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
                 title: string.Join("; ", result.Errors.Select(e => e.Description)));
@@ -188,9 +189,22 @@ public static class AgentEndpoints
         return Results.NoContent();
     }
 
-    // Random password that satisfies the Identity policy (upper, lower, digit, length ≥ 8).
-    private static string GenerateTemporaryPassword()
-        => $"{Guid.NewGuid():N}".Substring(0, 12) + "Aa1!";
+    private static async Task<IResult> ResetPasswordAsync(
+        Guid id, ResetPasswordRequest request, UserManager<AppUser> userManager, AppDbContext db, CancellationToken ct)
+    {
+        var agent = await db.Agents.FirstOrDefaultAsync(a => a.Id == id, ct);
+        if (agent is null) return Results.NotFound();
+
+        var user = await userManager.FindByIdAsync(agent.UserId);
+        if (user is null) return Results.NotFound();
+
+        var (succeeded, generated, errors) = await AccountInviteService.ResetPasswordAsync(userManager, user, request.NewPassword);
+        if (!succeeded)
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
+                title: string.Join("; ", errors.Select(e => e.Description)));
+
+        return Results.Ok(new ResetPasswordResult(generated));
+    }
 }
 
 public sealed record AgentDto(

@@ -38,6 +38,10 @@ export interface CreateAdminRequest {
   isSuperAdmin: boolean
 }
 
+export interface ResetPasswordResult {
+  temporaryPassword: string | null
+}
+
 export const accessApi = {
   permissions: () => get<PermissionDto[]>('/admin/access/permissions'),
   roles: () => get<AdminRoleDto[]>('/admin/access/roles'),
@@ -47,4 +51,6 @@ export const accessApi = {
   admins: () => get<AdminUserDto[]>('/admin/access/admins'),
   createAdmin: (body: CreateAdminRequest) => post<AdminUserDto>('/admin/access/admins', body),
   assignRoles: (id: string, roleIds: string[]) => put<void>(`/admin/access/admins/${id}/roles`, { roleIds }),
+  resetPassword: (id: string, newPassword?: string) =>
+    post<ResetPasswordResult>(`/admin/access/admins/${id}/reset-password`, { newPassword }),
 }

@@ -32,6 +32,7 @@ public static class AccessEndpoints
         group.MapGet("/admins", GetAdminsAsync);
         group.MapPost("/admins", CreateAdminAsync);
         group.MapPut("/admins/{id:guid}/roles", AssignRolesAsync);
+        group.MapPost("/admins/{id:guid}/reset-password", ResetAdminPasswordAsync);
 
         return app;
     }
@@ -178,7 +179,7 @@ public static class AccessEndpoints
             MustChangePassword = true,
         };
 
-        var result = await userManager.CreateAsync(user, GenerateTemporaryPassword());
+        var result = await userManager.CreateAsync(user, PasswordGenerator.GenerateTemporary());
         if (!result.Succeeded)
             return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
                 title: string.Join("; ", result.Errors.Select(e => e.Description)));
@@ -198,9 +199,22 @@ public static class AccessEndpoints
         return Results.Created($"/api/admin/access/admins/{profile.Id}", dto);
     }
 
-    // Random password that satisfies the Identity policy (upper, lower, digit, length ≥ 8).
-    private static string GenerateTemporaryPassword()
-        => $"{Guid.NewGuid():N}".Substring(0, 12) + "Aa1!";
+    private static async Task<IResult> ResetAdminPasswordAsync(
+        Guid id, ResetPasswordRequest request, UserManager<AppUser> userManager, AppDbContext db, CancellationToken ct)
+    {
+        var admin = await db.AdministrationUsers.FirstOrDefaultAsync(a => a.Id == id, ct);
+        if (admin is null) return Results.NotFound();
+
+        var user = await userManager.FindByIdAsync(admin.UserId);
+        if (user is null) return Results.NotFound();
+
+        var (succeeded, generated, errors) = await AccountInviteService.ResetPasswordAsync(userManager, user, request.NewPassword);
+        if (!succeeded)
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
+                title: string.Join("; ", errors.Select(e => e.Description)));
+
+        return Results.Ok(new ResetPasswordResult(generated));
+    }
 
     private static async Task<IResult> AssignRolesAsync(
         Guid id, AssignRolesRequest request, AppDbContext db, ClaimsPrincipal principal, CancellationToken ct)

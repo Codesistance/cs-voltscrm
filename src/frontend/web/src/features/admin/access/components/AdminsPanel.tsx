@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, ShieldCheck } from 'lucide-react'
+import { KeyRound, Plus, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { ApiError } from '@/shared/api/http'
 import { ErrorState } from '@/shared/components/ErrorState'
 import { LoadingState } from '@/shared/components/LoadingState'
+import { ResetPasswordDialog } from '@/shared/components/ResetPasswordDialog'
 import { useAuth } from '@/features/auth/AuthContext'
 import { accessApi, type AdminRoleDto, type AdminUserDto, type CreateAdminRequest } from '../api/accessApi'
 
@@ -20,6 +21,10 @@ export function AdminsPanel() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draftRoleIds, setDraftRoleIds] = useState<Set<string>>(new Set())
   const [creating, setCreating] = useState(false)
+  const [resetting, setResetting] = useState<AdminUserDto | null>(null)
+  const resetPasswordMut = useMutation({
+    mutationFn: ({ id, newPassword }: { id: string; newPassword?: string }) => accessApi.resetPassword(id, newPassword),
+  })
 
   const adminsQuery = useQuery({ queryKey: ['access', 'admins'], queryFn: accessApi.admins })
   const rolesQuery = useQuery({ queryKey: ['access', 'roles'], queryFn: accessApi.roles })
@@ -87,9 +92,14 @@ export function AdminsPanel() {
                   )}
                 </CardTitle>
                 {!editing && (
-                  <Button variant="outline" size="sm" onClick={() => startEdit(admin)}>
-                    Edit roles
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button variant="ghost" size="icon-sm" title="Reset password" onClick={() => setResetting(admin)}>
+                      <KeyRound className="size-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => startEdit(admin)}>
+                      Edit roles
+                    </Button>
+                  </div>
                 )}
               </div>
               <CardDescription>{admin.email}</CardDescription>
@@ -167,6 +177,15 @@ export function AdminsPanel() {
           />
         </DialogContent>
       </Dialog>
+
+      {resetting && (
+        <ResetPasswordDialog
+          open={!!resetting}
+          onOpenChange={(open) => !open && setResetting(null)}
+          subjectLabel={resetting.fullName || resetting.email}
+          onReset={(newPassword) => resetPasswordMut.mutateAsync({ id: resetting.id, newPassword })}
+        />
+      )}
     </div>
   )
 }

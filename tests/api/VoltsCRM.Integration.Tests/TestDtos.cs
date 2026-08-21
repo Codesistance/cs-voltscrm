@@ -32,3 +32,5 @@ public sealed record AdminUserDtoT(
     string FullName,
     bool IsSuperAdmin,
     List<Guid> RoleIds);
+
+public sealed record ResetPasswordResultDtoT(string? TemporaryPassword);

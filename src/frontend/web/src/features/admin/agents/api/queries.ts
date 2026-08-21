@@ -37,3 +37,9 @@ export function useDeactivateAgent() {
 export function useResendInvite() {
   return useMutation({ mutationFn: (id: Id) => agentsApi.resendInvite(id) })
 }
+
+export function useResetAgentPassword() {
+  return useMutation({
+    mutationFn: ({ id, newPassword }: { id: Id; newPassword?: string }) => agentsApi.resetPassword(id, newPassword),
+  })
+}
