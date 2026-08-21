@@ -25,8 +25,8 @@ api_domain                     = "" # CloudFront→ALB origin host, e.g. api.you
 
 # ── Container images ──────────────────────────────────────────────────────────
 
-api_image_tag    = "latest"
-worker_image_tag = "latest"
+api_image_tag    = "production"
+worker_image_tag = "production"
 
 # ── ECS sizing ────────────────────────────────────────────────────────────────
 
