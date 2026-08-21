@@ -83,11 +83,23 @@ jobs:
         id: tf
         working-directory: infrastructure/deployment
         run: |
+          USE_CUSTOM_DOMAIN=$(terraform output -raw use_custom_domain)
+
+          # cloudfront_distribution_id is null in the auto-FQDN branch (no CloudFront resource
+          # exists), and `terraform output -raw` on a null value errors — with the setup-terraform
+          # wrapper, that error text leaks onto stdout instead of being suppressed by `2>/dev/null`.
+          # Guard on use_custom_domain instead of relying on error suppression.
+          if [ "$USE_CUSTOM_DOMAIN" = "true" ]; then
+            DIST_ID=$(terraform output -raw cloudfront_distribution_id)
+          else
+            DIST_ID=""
+          fi
+
           {
             echo "spa_bucket=$(terraform output -raw spa_bucket)"
             echo "api_base_url=$(terraform output -raw api_base_url)"
-            echo "use_custom_domain=$(terraform output -raw use_custom_domain)"
-            echo "cloudfront_distribution_id=$(terraform output -raw cloudfront_distribution_id 2>/dev/null || true)"
+            echo "use_custom_domain=$USE_CUSTOM_DOMAIN"
+            echo "cloudfront_distribution_id=$DIST_ID"
           } >> "$GITHUB_OUTPUT"
 
       - name: Setup Node
