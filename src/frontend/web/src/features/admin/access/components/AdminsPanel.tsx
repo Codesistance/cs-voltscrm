@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { KeyRound, Plus, ShieldCheck } from 'lucide-react'
+import { Ban, KeyRound, Plus, ShieldCheck, UserCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ApiError } from '@/shared/api/http'
+import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
 import { ErrorState } from '@/shared/components/ErrorState'
 import { LoadingState } from '@/shared/components/LoadingState'
 import { ResetPasswordDialog } from '@/shared/components/ResetPasswordDialog'
@@ -22,8 +23,28 @@ export function AdminsPanel() {
   const [draftRoleIds, setDraftRoleIds] = useState<Set<string>>(new Set())
   const [creating, setCreating] = useState(false)
   const [resetting, setResetting] = useState<AdminUserDto | null>(null)
+  const [disabling, setDisabling] = useState<AdminUserDto | null>(null)
   const resetPasswordMut = useMutation({
     mutationFn: ({ id, newPassword }: { id: string; newPassword?: string }) => accessApi.resetPassword(id, newPassword),
+  })
+
+  const disableMutation = useMutation({
+    mutationFn: (id: string) => accessApi.disableAdmin(id),
+    onSuccess: () => {
+      toast.success('Administrator disabled.')
+      setDisabling(null)
+      void qc.invalidateQueries({ queryKey: ['access'] })
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't disable that administrator — give it another go."),
+  })
+
+  const enableMutation = useMutation({
+    mutationFn: (id: string) => accessApi.enableAdmin(id),
+    onSuccess: () => {
+      toast.success('Administrator re-enabled.')
+      void qc.invalidateQueries({ queryKey: ['access'] })
+    },
+    onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't re-enable that administrator — give it another go."),
   })
 
   const adminsQuery = useQuery({ queryKey: ['access', 'admins'], queryFn: accessApi.admins })
@@ -79,6 +100,7 @@ export function AdminsPanel() {
       <div className="grid gap-4 md:grid-cols-2">
       {adminsQuery.data.map((admin) => {
         const editing = editingId === admin.id
+        const isSelf = admin.userId === user?.id
         return (
           <Card key={admin.id}>
             <CardHeader className="pb-3">
@@ -90,12 +112,36 @@ export function AdminsPanel() {
                       <ShieldCheck className="size-3" /> Super
                     </Badge>
                   )}
+                  {!admin.isActive && <Badge variant="muted">Disabled</Badge>}
                 </CardTitle>
                 {!editing && (
                   <div className="flex gap-1">
                     <Button variant="ghost" size="icon-sm" title="Reset password" onClick={() => setResetting(admin)}>
                       <KeyRound className="size-4" />
                     </Button>
+                    {user?.isSuperAdmin && (
+                      admin.isActive ? (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          title={isSelf ? "You can't disable your own account" : 'Disable'}
+                          disabled={isSelf || disableMutation.isPending}
+                          onClick={() => setDisabling(admin)}
+                        >
+                          <Ban className="size-4" />
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          title="Re-enable"
+                          disabled={enableMutation.isPending}
+                          onClick={() => enableMutation.mutate(admin.id)}
+                        >
+                          <UserCheck className="size-4" />
+                        </Button>
+                      )
+                    )}
                     <Button variant="outline" size="sm" onClick={() => startEdit(admin)}>
                       Edit roles
                     </Button>
@@ -114,17 +160,19 @@ export function AdminsPanel() {
               {editing ? (
                 <div className="space-y-3">
                   <div className="space-y-2">
-                    {rolesQuery.data.map((role: AdminRoleDto) => (
-                      <label key={role.id} className="flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          className="size-4 rounded border-input"
-                          checked={draftRoleIds.has(role.id)}
-                          onChange={() => toggle(role.id)}
-                        />
-                        {role.name}
-                      </label>
-                    ))}
+                    {rolesQuery.data
+                      .filter((role: AdminRoleDto) => !role.isSystem)
+                      .map((role: AdminRoleDto) => (
+                        <label key={role.id} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            className="size-4 rounded border-input"
+                            checked={draftRoleIds.has(role.id)}
+                            onChange={() => toggle(role.id)}
+                          />
+                          {role.name}
+                        </label>
+                      ))}
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button
@@ -186,6 +234,17 @@ export function AdminsPanel() {
           onReset={(newPassword) => resetPasswordMut.mutateAsync({ id: resetting.id, newPassword })}
         />
       )}
+
+      <ConfirmDialog
+        open={!!disabling}
+        onOpenChange={(open) => !open && setDisabling(null)}
+        title="Disable administrator?"
+        description={`"${disabling?.fullName || disabling?.email}" will immediately lose access.`}
+        confirmText="Disable"
+        destructive
+        loading={disableMutation.isPending}
+        onConfirm={() => disabling && disableMutation.mutate(disabling.id)}
+      />
     </div>
   )
 }
@@ -268,6 +327,11 @@ function CreateAdminForm({
             ))}
           </div>
         )}
+        {isSuperAdmin && (
+          <p className="text-xs text-muted-foreground">
+            Roles are disabled because super administrators already hold every permission.
+          </p>
+        )}
       </div>
       {canGrantSuper && (
         <label className="flex items-center gap-2 text-sm">
@@ -275,7 +339,10 @@ function CreateAdminForm({
             type="checkbox"
             className="size-4 rounded border-input"
             checked={isSuperAdmin}
-            onChange={(e) => setIsSuperAdmin(e.target.checked)}
+            onChange={(e) => {
+              setIsSuperAdmin(e.target.checked)
+              if (e.target.checked) setRoleIds(new Set())
+            }}
           />
           Super administrator (holds every permission)
         </label>

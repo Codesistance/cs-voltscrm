@@ -18,6 +18,7 @@ public sealed record AdminUserDto(
     string Email,
     string FullName,
     bool IsSuperAdmin,
+    bool IsActive,
     IReadOnlyList<Guid> RoleIds);
 
 public sealed record AssignRolesRequest(IReadOnlyList<Guid> RoleIds);

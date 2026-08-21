@@ -33,6 +33,8 @@ public static class AccessEndpoints
         group.MapPost("/admins", CreateAdminAsync);
         group.MapPut("/admins/{id:guid}/roles", AssignRolesAsync);
         group.MapPost("/admins/{id:guid}/reset-password", ResetAdminPasswordAsync);
+        group.MapPost("/admins/{id:guid}/disable", DisableAdminAsync);
+        group.MapPost("/admins/{id:guid}/enable", EnableAdminAsync);
 
         return app;
     }
@@ -127,6 +129,7 @@ public static class AccessEndpoints
                 x.u.Email ?? string.Empty,
                 x.u.FirstName + " " + x.u.LastName,
                 x.a.IsSuperAdmin,
+                x.u.IsActive,
                 x.a.Roles.Select(r => r.AdminRoleId).ToList()))
             .ToListAsync(ct);
 
@@ -195,7 +198,7 @@ public static class AccessEndpoints
         await AccountInviteService.SendSetPasswordInviteAsync(userManager, email, emailOptions.Value, user);
 
         var dto = new AdminUserDto(profile.Id, user.Id, user.Email!, user.FullName, profile.IsSuperAdmin,
-            roleIds);
+            user.IsActive, roleIds);
         return Results.Created($"/api/admin/access/admins/{profile.Id}", dto);
     }
 
@@ -214,6 +217,42 @@ public static class AccessEndpoints
                 title: string.Join("; ", errors.Select(e => e.Description)));
 
         return Results.Ok(new ResetPasswordResult(generated));
+    }
+
+    private static Task<IResult> DisableAdminAsync(
+        Guid id, UserManager<AppUser> userManager, AppDbContext db, ClaimsPrincipal principal, CancellationToken ct)
+        => SetAdminActiveAsync(id, active: false, userManager, db, principal, ct);
+
+    private static Task<IResult> EnableAdminAsync(
+        Guid id, UserManager<AppUser> userManager, AppDbContext db, ClaimsPrincipal principal, CancellationToken ct)
+        => SetAdminActiveAsync(id, active: true, userManager, db, principal, ct);
+
+    private static async Task<IResult> SetAdminActiveAsync(
+        Guid id, bool active, UserManager<AppUser> userManager, AppDbContext db, ClaimsPrincipal principal, CancellationToken ct)
+    {
+        // Disabling/re-enabling an admin account is a super-admin-only action, regardless of the
+        // caller's access.manage permission — mirrors the super-admin grant check in CreateAdminAsync.
+        var callerUserId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
+        var callerIsSuper = callerUserId is not null
+            && await db.AdministrationUsers.AnyAsync(a => a.UserId == callerUserId && a.IsSuperAdmin, ct);
+        if (!callerIsSuper)
+            return Results.Problem(statusCode: StatusCodes.Status403Forbidden,
+                title: "Only a super admin can disable or re-enable an administrator.");
+
+        var admin = await db.AdministrationUsers.FirstOrDefaultAsync(a => a.Id == id, ct);
+        if (admin is null) return Results.NotFound();
+
+        if (!active && admin.UserId == callerUserId)
+            return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
+                title: "You cannot disable your own account.");
+
+        var user = await userManager.FindByIdAsync(admin.UserId);
+        if (user is null) return Results.NotFound();
+
+        user.IsActive = active;
+        await userManager.UpdateAsync(user);
+
+        return Results.NoContent();
     }
 
     private static async Task<IResult> AssignRolesAsync(

@@ -27,6 +27,7 @@ export interface AdminUserDto {
   email: string
   fullName: string
   isSuperAdmin: boolean
+  isActive: boolean
   roleIds: string[]
 }
 
@@ -53,4 +54,6 @@ export const accessApi = {
   assignRoles: (id: string, roleIds: string[]) => put<void>(`/admin/access/admins/${id}/roles`, { roleIds }),
   resetPassword: (id: string, newPassword?: string) =>
     post<ResetPasswordResult>(`/admin/access/admins/${id}/reset-password`, { newPassword }),
+  disableAdmin: (id: string) => post<void>(`/admin/access/admins/${id}/disable`, {}),
+  enableAdmin: (id: string) => post<void>(`/admin/access/admins/${id}/enable`, {}),
 }
