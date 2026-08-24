@@ -11,6 +11,7 @@ public static class EndpointExtensions
         app.MapAuthEndpoints();
         app.MapAccessEndpoints();
         app.MapPhoenixEndpoints();
+        app.MapAuditEndpoints();
         app.MapInventoryEndpoints();
         app.MapServicePlanEndpoints();
         app.MapCustomerEndpoints();

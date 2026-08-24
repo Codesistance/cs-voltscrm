@@ -9,6 +9,7 @@ import {
   Percent,
   Receipt,
   Repeat,
+  ScrollText,
   Settings,
   ShieldCheck,
   UserCog,
@@ -33,4 +34,5 @@ export const adminNav: NavItem[] = [
   { label: 'Import', to: '/admin/import', icon: FileUp, permission: PERMISSIONS.customersManage },
   { label: 'Settings', to: '/admin/settings/payment-gateways', icon: Settings, permission: PERMISSIONS.settingsManage },
   { label: 'Access Control', to: '/admin/access', icon: ShieldCheck, permission: PERMISSIONS.accessManage },
+  { label: 'Audit Log', to: '/admin/audit', icon: ScrollText, superAdmin: true },
 ]

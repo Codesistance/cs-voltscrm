@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using System.Security.Claims;
+using System.Text.Json;
 using VoltsCRM.API.Auth;
 using VoltsCRM.Application.Authorization;
 using VoltsCRM.Application.Common.Interfaces;
@@ -59,7 +60,8 @@ public static class AccessEndpoints
         return Results.Ok(roles);
     }
 
-    private static async Task<IResult> CreateRoleAsync(SaveAdminRoleRequest request, AppDbContext db, CancellationToken ct)
+    private static async Task<IResult> CreateRoleAsync(
+        SaveAdminRoleRequest request, AppDbContext db, IAuditLogger audit, CancellationToken ct)
     {
         if (Invalid(request, out var problem)) return problem;
 
@@ -73,13 +75,22 @@ public static class AccessEndpoints
         db.AdminRoles.Add(role);
         await db.SaveChangesAsync(ct);
 
+        await audit.LogAsync(new AuditEntry
+        {
+            Action = AuditActions.RoleCreate,
+            TargetType = "role",
+            TargetId = role.Id.ToString(),
+            TargetLabel = role.Name,
+            Details = JsonSerializer.Serialize(new { permissions = request.Permissions }),
+        }, ct);
+
         return Results.Created($"/api/admin/access/roles/{role.Id}",
             new AdminRoleDto(role.Id, role.Name, role.Description, role.IsSystem,
                 role.Permissions.Select(p => p.PermissionKey).ToList(), 0));
     }
 
     private static async Task<IResult> UpdateRoleAsync(
-        Guid id, SaveAdminRoleRequest request, AppDbContext db, CancellationToken ct)
+        Guid id, SaveAdminRoleRequest request, AppDbContext db, IAuditLogger audit, CancellationToken ct)
     {
         if (Invalid(request, out var problem)) return problem;
 
@@ -102,18 +113,38 @@ public static class AccessEndpoints
             role.Permissions.Add(new AdminRolePermission { AdminRoleId = role.Id, PermissionKey = key });
 
         await db.SaveChangesAsync(ct);
+
+        await audit.LogAsync(new AuditEntry
+        {
+            Action = AuditActions.RoleUpdate,
+            TargetType = "role",
+            TargetId = role.Id.ToString(),
+            TargetLabel = role.Name,
+            Details = JsonSerializer.Serialize(new { permissions = request.Permissions }),
+        }, ct);
+
         return Results.NoContent();
     }
 
-    private static async Task<IResult> DeleteRoleAsync(Guid id, AppDbContext db, CancellationToken ct)
+    private static async Task<IResult> DeleteRoleAsync(Guid id, AppDbContext db, IAuditLogger audit, CancellationToken ct)
     {
         var role = await db.AdminRoles.FirstOrDefaultAsync(r => r.Id == id, ct);
         if (role is null) return Results.NotFound();
         if (role.IsSystem)
             return Results.Problem(statusCode: StatusCodes.Status400BadRequest, title: "System roles cannot be deleted.");
 
+        var roleName = role.Name;
         db.AdminRoles.Remove(role); // cascades to role-permission and user-role joins
         await db.SaveChangesAsync(ct);
+
+        await audit.LogAsync(new AuditEntry
+        {
+            Action = AuditActions.RoleDelete,
+            TargetType = "role",
+            TargetId = id.ToString(),
+            TargetLabel = roleName,
+        }, ct);
+
         return Results.NoContent();
     }
 
@@ -143,6 +174,7 @@ public static class AccessEndpoints
         IEmailSender email,
         IOptions<EmailOptions> emailOptions,
         ClaimsPrincipal principal,
+        IAuditLogger audit,
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(request.Email))
@@ -197,13 +229,23 @@ public static class AccessEndpoints
 
         await AccountInviteService.SendSetPasswordInviteAsync(userManager, email, emailOptions.Value, user);
 
+        await audit.LogAsync(new AuditEntry
+        {
+            Action = AuditActions.AdminCreate,
+            TargetType = "admin",
+            TargetId = user.Id,
+            TargetLabel = user.Email,
+            Details = JsonSerializer.Serialize(new { isSuperAdmin = request.IsSuperAdmin, roleIds }),
+        }, ct);
+
         var dto = new AdminUserDto(profile.Id, user.Id, user.Email!, user.FullName, profile.IsSuperAdmin,
             user.IsActive, roleIds);
         return Results.Created($"/api/admin/access/admins/{profile.Id}", dto);
     }
 
     private static async Task<IResult> ResetAdminPasswordAsync(
-        Guid id, ResetPasswordRequest request, UserManager<AppUser> userManager, AppDbContext db, CancellationToken ct)
+        Guid id, ResetPasswordRequest request, UserManager<AppUser> userManager, AppDbContext db,
+        IAuditLogger audit, CancellationToken ct)
     {
         var admin = await db.AdministrationUsers.FirstOrDefaultAsync(a => a.Id == id, ct);
         if (admin is null) return Results.NotFound();
@@ -216,19 +258,28 @@ public static class AccessEndpoints
             return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
                 title: string.Join("; ", errors.Select(e => e.Description)));
 
+        await audit.LogAsync(new AuditEntry
+        {
+            Action = AuditActions.AdminResetPassword,
+            TargetType = "admin",
+            TargetId = user.Id,
+            TargetLabel = user.Email,
+            Details = JsonSerializer.Serialize(new { generated = generated is not null }),
+        }, ct);
+
         return Results.Ok(new ResetPasswordResult(generated));
     }
 
     private static Task<IResult> DisableAdminAsync(
-        Guid id, UserManager<AppUser> userManager, AppDbContext db, ClaimsPrincipal principal, CancellationToken ct)
-        => SetAdminActiveAsync(id, active: false, userManager, db, principal, ct);
+        Guid id, UserManager<AppUser> userManager, AppDbContext db, ClaimsPrincipal principal, IAuditLogger audit, CancellationToken ct)
+        => SetAdminActiveAsync(id, active: false, userManager, db, principal, audit, ct);
 
     private static Task<IResult> EnableAdminAsync(
-        Guid id, UserManager<AppUser> userManager, AppDbContext db, ClaimsPrincipal principal, CancellationToken ct)
-        => SetAdminActiveAsync(id, active: true, userManager, db, principal, ct);
+        Guid id, UserManager<AppUser> userManager, AppDbContext db, ClaimsPrincipal principal, IAuditLogger audit, CancellationToken ct)
+        => SetAdminActiveAsync(id, active: true, userManager, db, principal, audit, ct);
 
     private static async Task<IResult> SetAdminActiveAsync(
-        Guid id, bool active, UserManager<AppUser> userManager, AppDbContext db, ClaimsPrincipal principal, CancellationToken ct)
+        Guid id, bool active, UserManager<AppUser> userManager, AppDbContext db, ClaimsPrincipal principal, IAuditLogger audit, CancellationToken ct)
     {
         // Disabling/re-enabling an admin account is a super-admin-only action, regardless of the
         // caller's access.manage permission — mirrors the super-admin grant check in CreateAdminAsync.
@@ -252,11 +303,19 @@ public static class AccessEndpoints
         user.IsActive = active;
         await userManager.UpdateAsync(user);
 
+        await audit.LogAsync(new AuditEntry
+        {
+            Action = active ? AuditActions.AdminEnable : AuditActions.AdminDisable,
+            TargetType = "admin",
+            TargetId = user.Id,
+            TargetLabel = user.Email,
+        }, ct);
+
         return Results.NoContent();
     }
 
     private static async Task<IResult> AssignRolesAsync(
-        Guid id, AssignRolesRequest request, AppDbContext db, ClaimsPrincipal principal, CancellationToken ct)
+        Guid id, AssignRolesRequest request, AppDbContext db, ClaimsPrincipal principal, IAuditLogger audit, CancellationToken ct)
     {
         var admin = await db.AdministrationUsers.Include(a => a.Roles).FirstOrDefaultAsync(a => a.Id == id, ct);
         if (admin is null) return Results.NotFound();
@@ -282,6 +341,15 @@ public static class AccessEndpoints
             admin.Roles.Add(new AdminUserRole { AdministrationUserId = admin.Id, AdminRoleId = roleId });
 
         await db.SaveChangesAsync(ct);
+
+        await audit.LogAsync(new AuditEntry
+        {
+            Action = AuditActions.AdminAssignRoles,
+            TargetType = "admin",
+            TargetId = admin.UserId,
+            Details = JsonSerializer.Serialize(new { roleIds }),
+        }, ct);
+
         return Results.NoContent();
     }
 

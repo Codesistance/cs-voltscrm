@@ -6,6 +6,7 @@ using Microsoft.Extensions.DependencyInjection;
 using VoltsCRM.Application.Authorization;
 using VoltsCRM.Application.Common.Interfaces;
 using VoltsCRM.Application.Common.Options;
+using VoltsCRM.Infrastructure.Auditing;
 using VoltsCRM.Infrastructure.Authorization;
 using VoltsCRM.Infrastructure.Email;
 using VoltsCRM.Infrastructure.Geocoding;
@@ -43,6 +44,7 @@ public static class DependencyInjection
         services.AddScoped<IAppDbContext>(sp => sp.GetRequiredService<AppDbContext>());
 
         services.AddScoped<IPermissionResolver, PermissionResolver>();
+        services.AddScoped<IAuditLogger, AuditLogger>();
 
         // Email: use real SES when a sender address is configured, otherwise log the message (dev).
         var emailFrom = configuration[$"{EmailOptions.SectionName}:{nameof(EmailOptions.FromAddress)}"];

@@ -14,6 +14,7 @@ import { agentNav } from '@/features/agent/nav'
 import { portalNav } from '@/features/portal/nav'
 import { DashboardPage } from '@/features/dashboard/routes/DashboardPage'
 import { AccessPage } from '@/features/admin/access/routes/AccessPage'
+import { AuditLogPage } from '@/features/audit/routes/AuditLogPage'
 import { InventoryListPage } from '@/features/inventory/routes/InventoryListPage'
 import { InventoryDetailPage } from '@/features/inventory/routes/InventoryDetailPage'
 import { InventoryFormPage } from '@/features/inventory/routes/InventoryFormPage'
@@ -220,6 +221,11 @@ export const router = createBrowserRouter([
                 ],
               },
               gated(PERMISSIONS.accessManage, 'access', <AccessPage />),
+              // Audit log — super admins only (also enforced server-side).
+              {
+                element: <SuperAdminGuard />,
+                children: [{ path: 'audit', element: <AuditLogPage /> }],
+              },
               notFound,
             ],
           },

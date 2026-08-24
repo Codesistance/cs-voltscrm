@@ -5,6 +5,7 @@ using VoltsCRM.Domain.Entities.Billing;
 using VoltsCRM.Domain.Entities.Crm;
 using VoltsCRM.Domain.Entities.Inventory;
 using VoltsCRM.Domain.Entities.Organisation;
+using VoltsCRM.Infrastructure.Auditing;
 using VoltsCRM.Infrastructure.Identity;
 
 namespace VoltsCRM.Infrastructure.Persistence;
@@ -50,6 +51,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<PaymentGatewayConfig> PaymentGatewayConfigs => Set<PaymentGatewayConfig>();
     public DbSet<AutoDebitSettings> AutoDebitSettings => Set<AutoDebitSettings>();
     public DbSet<TokenVendingSettings> TokenVendingSettings => Set<TokenVendingSettings>();
+
+    // Auditing (append-only)
+    public DbSet<AuditEvent> AuditEvents => Set<AuditEvent>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
