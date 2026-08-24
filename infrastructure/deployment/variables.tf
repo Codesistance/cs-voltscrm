@@ -143,6 +143,12 @@ variable "jwt_refresh_expiry_days" {
 #           the API runs over plain HTTP on the ALB's auto-generated DNS name. Auth
 #           switches to a cookie-less (body) refresh so it works cross-origin over HTTP.
 
+variable "enable_phoenix" {
+  description = "When true, expose the Phoenix super-admin account-recovery page (route /phoenix + the /api/admin/phoenix endpoints). When false, the endpoints are not mapped and the SPA route is not built, so the path does not exist. Even when true the endpoint still requires an authenticated super admin."
+  type        = bool
+  default     = true
+}
+
 variable "use_custom_domain" {
   description = "When true, provision the CloudFront SPA edge + ALB HTTPS under custom domains. When false, serve the SPA from S3 static-website hosting and the API over plain HTTP on the ALB's auto-generated DNS name."
   type        = bool
