@@ -100,6 +100,7 @@ jobs:
             echo "api_base_url=$(terraform output -raw api_base_url)"
             echo "use_custom_domain=$USE_CUSTOM_DOMAIN"
             echo "cloudfront_distribution_id=$DIST_ID"
+            echo "enable_phoenix=$(terraform output -raw enable_phoenix)"
           } >> "$GITHUB_OUTPUT"
 
       - name: Setup Node
@@ -115,6 +116,8 @@ jobs:
           VITE_API_BASE: ${{ steps.tf.outputs.api_base_url }}
           # Cookie-less refresh whenever the custom-domain edge is off (cross-origin over HTTP).
           VITE_REFRESH_IN_BODY: ${{ steps.tf.outputs.use_custom_domain == 'false' }}
+          # Gate the /phoenix recovery route on the same enable_phoenix tfvar as the API endpoint.
+          VITE_PHOENIX_ENABLED: ${{ steps.tf.outputs.enable_phoenix }}
         run: |
           npm ci
           npm run build

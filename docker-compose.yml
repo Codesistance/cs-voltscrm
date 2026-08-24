@@ -65,6 +65,8 @@ services:
       Jwt__Audience: VoltsCRM
       # Seed-admin HMAC key (dev-only; in deployed envs this comes from AWS SSM Parameter Store)
       Seed__HmacKey: "VoltsCRM-Dev-Seed-HMAC-Key-Local-Development-Only-2024!"
+      # Phoenix super-admin account-recovery page (deployed envs are driven by the enable_phoenix tfvar)
+      Phoenix__Enabled: "true"
       # Voltspayments no-op gateway webhook secret (dev-only; deployed envs use AWS SSM Parameter Store)
       Payments__Voltspayments__WebhookSecret: "VoltsCRM-Dev-Voltspayments-Webhook-Secret-Local-Only-2024!"
       # CORS - allow local frontend dev server

@@ -8,6 +8,11 @@ output "use_custom_domain" {
   value       = var.use_custom_domain
 }
 
+output "enable_phoenix" {
+  description = "Whether the Phoenix super-admin account-recovery page is enabled (drives VITE_PHOENIX_ENABLED for the SPA build)"
+  value       = var.enable_phoenix
+}
+
 output "spa_url" {
   description = "Public URL of the SPA — CloudFront/app domain (custom branch) or the S3 static-website endpoint (auto-FQDN branch)"
   value       = var.use_custom_domain ? "https://${var.app_domain}" : "http://${one(aws_s3_bucket_website_configuration.spa[*].website_endpoint)}"

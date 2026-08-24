@@ -159,6 +159,8 @@ resource "aws_ecs_task_definition" "api" {
       { name = "Cors__AllowedOrigins__0", value = var.use_custom_domain ? var.cors_allowed_origins : "http://${one(aws_s3_bucket_website_configuration.spa[*].website_endpoint)}" },
       # Cookie-less (body) refresh when there's no HTTPS same-origin context (auto-FQDN branch).
       { name = "Auth__RefreshTokenInBody", value = tostring(!var.use_custom_domain) },
+      # Phoenix super-admin account-recovery endpoint gate (see var.enable_phoenix).
+      { name = "Phoenix__Enabled", value = tostring(var.enable_phoenix) },
       { name = "Aws__Region", value = var.aws_region },
       { name = "Aws__AssetsBucket", value = aws_s3_bucket.assets.bucket },
       { name = "Redis__Configuration", value = "${aws_elasticache_replication_group.main.primary_endpoint_address}:6379" },

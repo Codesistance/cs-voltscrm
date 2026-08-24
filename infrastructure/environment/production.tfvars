@@ -54,6 +54,10 @@ jwt_audience              = "VoltsCRM"
 jwt_access_expiry_minutes = 15
 jwt_refresh_expiry_days   = 7
 
+# Phoenix super-admin account-recovery page (/phoenix). When false the path does not exist
+# (endpoints unmapped, SPA route not built). Even when true it requires an authenticated super admin.
+enable_phoenix = true
+
 # ── Secrets ───────────────────────────────────────────────────────────────────
 # Secrets are SSM Parameter Store SecureString parameters (see deployment/secrets.tf).
 # Set their values after the first apply — see infrastructure/README.md. Nothing to set here.

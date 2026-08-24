@@ -80,6 +80,7 @@ builder.Services.Configure<AuthOptions>(builder.Configuration.GetSection(AuthOpt
 builder.Services.Configure<BillingOptions>(builder.Configuration.GetSection(BillingOptions.SectionName));
 builder.Services.Configure<EmailOptions>(builder.Configuration.GetSection(EmailOptions.SectionName));
 builder.Services.Configure<SeedOptions>(builder.Configuration.GetSection(SeedOptions.SectionName));
+builder.Services.Configure<PhoenixOptions>(builder.Configuration.GetSection(PhoenixOptions.SectionName));
 builder.Services.AddSingleton<ITokenService, JwtTokenService>();
 
 // Complete Identity setup (token providers live in ASP.NET Core layer)

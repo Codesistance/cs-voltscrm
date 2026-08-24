@@ -34,3 +34,5 @@ public sealed record AdminUserDtoT(
     List<Guid> RoleIds);
 
 public sealed record ResetPasswordResultDtoT(string? TemporaryPassword);
+
+public sealed record PhoenixResetResultDtoT(string Email, string TemporaryPassword, bool Reactivated);

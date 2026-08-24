@@ -3,6 +3,7 @@ import { LoginPage } from '@/features/auth/routes/LoginPage'
 import { SetPasswordPage } from '@/features/auth/routes/SetPasswordPage'
 import { ChangePasswordPage } from '@/features/auth/routes/ChangePasswordPage'
 import { ProtectedRoute } from '@/features/auth/ProtectedRoute'
+import { SuperAdminGuard } from '@/features/auth/SuperAdminGuard'
 import { AreaGuard } from '@/features/auth/AreaGuard'
 import { AreaRedirect } from '@/features/auth/AreaRedirect'
 import { PermissionGuard } from '@/features/auth/PermissionGuard'
@@ -52,6 +53,8 @@ import { PortalInvoicesPage } from '@/features/portal/routes/PortalInvoicesPage'
 import { PortalPaymentsPage } from '@/features/portal/routes/PortalPaymentsPage'
 import { PortalProfilePage } from '@/features/portal/routes/PortalProfilePage'
 import { MessageScreen } from '@/shared/components/MessageScreen'
+import { PhoenixPage } from '@/features/phoenix/PhoenixPage'
+import { config } from '@/app/config'
 
 /** Wraps a single admin page in a permission guard. */
 const gated = (permission: string, path: string, element: React.ReactNode) => ({
@@ -70,6 +73,17 @@ export const router = createBrowserRouter([
       { index: true, element: <AreaRedirect /> },
       // Area-agnostic: any authenticated user can (and may be forced to) change their password.
       { path: 'change-password', element: <ChangePasswordPage /> },
+
+      // Phoenix — super-admin account recovery. Registered only when the enable_phoenix flag is on
+      // (mirrors the API's Phoenix:Enabled gate); when off the route doesn't exist and falls to 404.
+      ...(config.phoenixEnabled
+        ? [
+            {
+              element: <SuperAdminGuard />,
+              children: [{ path: 'phoenix', element: <PhoenixPage /> }],
+            },
+          ]
+        : []),
 
       // Administration area — dynamic, permission-gated pages
       {
