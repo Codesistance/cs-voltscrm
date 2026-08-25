@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using System.Security.Claims;
 using VoltsCRM.API.Auth;
 using VoltsCRM.Application.Authorization;
+using VoltsCRM.Application.Common.Interfaces;
 using VoltsCRM.Infrastructure.Identity;
 using VoltsCRM.Infrastructure.Persistence;
 
@@ -38,11 +39,23 @@ public static class AuthEndpoints
         AppDbContext db,
         HttpContext http,
         IOptions<AuthOptions> authOptions,
+        IAuditLogger audit,
         CancellationToken ct)
     {
         var user = await userManager.FindByEmailAsync(request.Email);
         if (user is null || !user.IsActive || !await userManager.CheckPasswordAsync(user, request.Password))
+        {
+            await audit.LogAsync(new AuditEntry
+            {
+                Action = AuditActions.LoginFailed,
+                Outcome = AuditOutcomes.Failure,
+                ActorEmail = request.Email,
+                ActorUserId = user?.Id,
+                TargetType = "user",
+                TargetLabel = request.Email,
+            }, ct);
             return Results.Problem(statusCode: StatusCodes.Status401Unauthorized, title: "Invalid email or password.");
+        }
 
         var roles = await userManager.GetRolesAsync(user);
         var permissions = await permissionResolver.GetPermissionsAsync(user.Id, ct);
@@ -61,6 +74,14 @@ public static class AuthEndpoints
         var inBody = authOptions.Value.RefreshTokenInBody;
         if (!inBody)
             SetRefreshCookie(http, refresh.Value, refresh.ExpiresAt);
+
+        await audit.LogAsync(new AuditEntry
+        {
+            Action = AuditActions.LoginSucceeded,
+            Outcome = AuditOutcomes.Success,
+            ActorUserId = user.Id,
+            ActorEmail = user.Email,
+        }, ct);
 
         return Results.Ok(new LoginResponse(
             access.Value,

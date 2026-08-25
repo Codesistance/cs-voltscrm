@@ -13,6 +13,7 @@ import { ApiError } from '@/shared/api/http'
 import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
 import { ErrorState } from '@/shared/components/ErrorState'
 import { LoadingState } from '@/shared/components/LoadingState'
+import { PasswordRevealDialog } from '@/shared/components/PasswordRevealDialog'
 import { ResetPasswordDialog } from '@/shared/components/ResetPasswordDialog'
 import { useAuth } from '@/features/auth/AuthContext'
 import { accessApi, type AdminRoleDto, type AdminUserDto, type CreateAdminRequest } from '../api/accessApi'
@@ -26,6 +27,7 @@ export function AdminsPanel() {
   const [resetting, setResetting] = useState<AdminUserDto | null>(null)
   const [disabling, setDisabling] = useState<AdminUserDto | null>(null)
   const [scope, setScope] = useState<'super' | 'non-super'>('super')
+  const [createdPassword, setCreatedPassword] = useState<string | null>(null)
   const resetPasswordMut = useMutation({
     mutationFn: ({ id, newPassword }: { id: string; newPassword?: string }) => accessApi.resetPassword(id, newPassword),
   })
@@ -64,10 +66,12 @@ export function AdminsPanel() {
 
   const createMutation = useMutation({
     mutationFn: (body: CreateAdminRequest) => accessApi.createAdmin(body),
-    onSuccess: () => {
-      toast.success('Administrator created — invite sent.')
+    onSuccess: (result) => {
+      toast.success('Administrator created.')
       setCreating(false)
       void qc.invalidateQueries({ queryKey: ['access'] })
+      // Auto-generated password mode returns the value once so it can be handed over.
+      if (result.temporaryPassword) setCreatedPassword(result.temporaryPassword)
     },
     onError: (e) => toast.error(e instanceof ApiError ? e.message : "Couldn't create that administrator — give it another go."),
   })
@@ -262,6 +266,14 @@ export function AdminsPanel() {
         loading={disableMutation.isPending}
         onConfirm={() => disabling && disableMutation.mutate(disabling.id)}
       />
+
+      <PasswordRevealDialog
+        open={!!createdPassword}
+        onOpenChange={(open) => !open && setCreatedPassword(null)}
+        password={createdPassword ?? ''}
+        title="Administrator created"
+        description="Give this temporary password to the new administrator — it won't be shown again. They'll be required to change it at next login."
+      />
     </div>
   )
 }
@@ -284,6 +296,8 @@ function CreateAdminForm({
   const [lastName, setLastName] = useState('')
   const [roleIds, setRoleIds] = useState<Set<string>>(new Set())
   const [isSuperAdmin, setIsSuperAdmin] = useState(false)
+  const [passwordMode, setPasswordMode] = useState<'generate' | 'custom'>('generate')
+  const [password, setPassword] = useState('')
 
   const toggle = (id: string) =>
     setRoleIds((prev) => {
@@ -307,6 +321,7 @@ function CreateAdminForm({
           lastName: lastName.trim(),
           roleIds: [...roleIds],
           isSuperAdmin,
+          password: passwordMode === 'custom' ? password : undefined,
         })
       }}
     >
@@ -364,12 +379,48 @@ function CreateAdminForm({
           Super administrator (holds every permission)
         </label>
       )}
+      <div className="space-y-2">
+        <Label>Password</Label>
+        <Tabs value={passwordMode} onValueChange={(v) => setPasswordMode(v as 'generate' | 'custom')}>
+          <TabsList className="w-full">
+            <TabsTrigger value="generate" className="flex-1">
+              Generate for me
+            </TabsTrigger>
+            <TabsTrigger value="custom" className="flex-1">
+              Set it myself
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
+        {passwordMode === 'generate' ? (
+          <p className="text-xs text-muted-foreground">
+            A temporary password is generated and shown once after creation, so you can hand it over.
+          </p>
+        ) : (
+          <Input
+            type="text"
+            autoComplete="off"
+            placeholder="At least 8 characters"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        )}
+      </div>
+
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
           Cancel
         </Button>
-        <Button type="submit" disabled={saving || !email.trim() || !firstName.trim() || !lastName.trim()}>
-          {saving ? 'Saving…' : 'Create & invite'}
+        <Button
+          type="submit"
+          disabled={
+            saving ||
+            !email.trim() ||
+            !firstName.trim() ||
+            !lastName.trim() ||
+            (passwordMode === 'custom' && password.length < 8)
+          }
+        >
+          {saving ? 'Saving…' : 'Create administrator'}
         </Button>
       </div>
     </form>

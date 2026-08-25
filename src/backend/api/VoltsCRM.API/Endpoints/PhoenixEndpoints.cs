@@ -1,9 +1,10 @@
 using Microsoft.AspNetCore.Identity;
-using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using System.Security.Claims;
+using System.Text.Json;
 using VoltsCRM.API.Auth;
 using VoltsCRM.Application.Authorization;
+using VoltsCRM.Application.Common.Interfaces;
 using VoltsCRM.Infrastructure.Identity;
 using VoltsCRM.Infrastructure.Persistence;
 
@@ -45,17 +46,12 @@ public static class PhoenixEndpoints
         UserManager<AppUser> userManager,
         AppDbContext db,
         ClaimsPrincipal principal,
-        ILoggerFactory loggerFactory,
+        IAuditLogger audit,
         CancellationToken ct)
     {
-        var logger = loggerFactory.CreateLogger("Phoenix");
-
-        // Super-admin only — mirrors the guard on admin disable/enable. access.manage (required by the
-        // group) is necessary but not sufficient: recovery of any account is a super-admin action.
-        var callerUserId = principal.FindFirstValue(ClaimTypes.NameIdentifier);
-        var callerIsSuper = callerUserId is not null
-            && await db.AdministrationUsers.AnyAsync(a => a.UserId == callerUserId && a.IsSuperAdmin, ct);
-        if (!callerIsSuper)
+        // Super-admin only. access.manage (required by the group) is necessary but not sufficient:
+        // recovery of any account is a super-admin action, mirroring the admin disable/enable guard.
+        if (!await AdminAuthorization.IsSuperAdminAsync(db, principal, ct))
             return Results.Problem(statusCode: StatusCodes.Status403Forbidden,
                 title: "Only a super admin can use account recovery.");
 
@@ -70,8 +66,19 @@ public static class PhoenixEndpoints
         // AccountInviteService generate the value and return it so we can surface it once.
         var (succeeded, generated, errors) = await AccountInviteService.ResetPasswordAsync(userManager, user, null);
         if (!succeeded)
+        {
+            await audit.LogAsync(new AuditEntry
+            {
+                Action = AuditActions.PhoenixRecover,
+                Outcome = AuditOutcomes.Failure,
+                TargetType = "user",
+                TargetId = user.Id,
+                TargetLabel = user.Email,
+                Details = JsonSerializer.Serialize(new { errors = errors.Select(e => e.Description) }),
+            }, ct);
             return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
                 title: string.Join("; ", errors.Select(e => e.Description)));
+        }
 
         // Recovery also re-activates a disabled account so the user can sign back in.
         var reactivated = false;
@@ -82,9 +89,15 @@ public static class PhoenixEndpoints
             reactivated = true;
         }
 
-        logger.LogWarning(
-            "Phoenix recovery: super admin {CallerUserId} reset the password for {Email} (reactivated: {Reactivated}).",
-            callerUserId, user.Email, reactivated);
+        await audit.LogAsync(new AuditEntry
+        {
+            Action = AuditActions.PhoenixRecover,
+            Outcome = AuditOutcomes.Success,
+            TargetType = "user",
+            TargetId = user.Id,
+            TargetLabel = user.Email,
+            Details = JsonSerializer.Serialize(new { reactivated }),
+        }, ct);
 
         return Results.Ok(new PhoenixResetResult(user.Email!, generated!, reactivated));
     }

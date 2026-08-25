@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -6,6 +7,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using VoltsCRM.Application.Authorization;
 using VoltsCRM.Domain.Enums;
+using VoltsCRM.Infrastructure.Identity;
 using VoltsCRM.Infrastructure.Persistence;
 using VoltsCRM.Integration.Tests.Helpers;
 
@@ -70,7 +72,7 @@ public class AdminCreationTests : IAsyncLifetime
         response.Content.ReadFromJsonAsync<T>(Ct);
 
     [Fact]
-    public async Task CreateAdmin_WithAccessManagePermission_Returns201AndCreatesRowsAndSendsInvite()
+    public async Task CreateAdmin_GeneratedPassword_Returns201WithTemporaryPassword()
     {
         // Arrange: Create a non-super admin with access.manage
         using var scope = _factory.CreateScopeForArrange();
@@ -79,7 +81,7 @@ public class AdminCreationTests : IAsyncLifetime
 
         var newEmail = $"newadmin_{Guid.NewGuid():N}@voltscrm.local";
 
-        // Act
+        // Act — no password supplied → server generates one and returns it once.
         var response = await PostAsync("/api/admin/access/admins", new
         {
             email = newEmail,
@@ -92,12 +94,19 @@ public class AdminCreationTests : IAsyncLifetime
         // Assert: 201 Created
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
-        var dto = await ReadAsync<AdminUserDtoT>(response);
-        Assert.NotNull(dto);
-        Assert.Equal(newEmail, dto!.Email);
-        Assert.Equal("New Admin", dto.FullName);
-        Assert.False(dto.IsSuperAdmin);
-        Assert.Contains(admin.RoleId, dto.RoleIds);
+        var result = await ReadAsync<CreateAdminResultT>(response);
+        Assert.NotNull(result);
+        Assert.Equal(newEmail, result!.Admin.Email);
+        Assert.Equal("New Admin", result.Admin.FullName);
+        Assert.False(result.Admin.IsSuperAdmin);
+        Assert.Contains(admin.RoleId, result.Admin.RoleIds);
+        Assert.False(string.IsNullOrEmpty(result.TemporaryPassword));
+
+        // The generated password actually works for login.
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var created = await userManager.FindByEmailAsync(newEmail);
+        Assert.NotNull(created);
+        Assert.True(await userManager.CheckPasswordAsync(created!, result.TemporaryPassword!));
 
         // Verify database state
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -118,12 +127,38 @@ public class AdminCreationTests : IAsyncLifetime
         Assert.NotNull(adminProfile);
         Assert.False(adminProfile!.IsSuperAdmin);
         Assert.Contains(adminProfile.Roles, r => r.AdminRoleId == admin.RoleId);
+    }
 
-        // Verify invite email was sent
-        Assert.Single(_fakeEmail.SentEmails);
-        var email = _fakeEmail.SentEmails[0];
-        Assert.Equal(newEmail, email.To);
-        Assert.Contains("set-password", email.HtmlBody);
+    [Fact]
+    public async Task CreateAdmin_CustomPassword_Returns201AndSetsThatPassword()
+    {
+        using var scope = _factory.CreateScopeForArrange();
+        var admin = await TestUsers.CreateAdminWithRoleAsync(scope.ServiceProvider, [Permissions.AccessManage]);
+        var token = TestTokenFactory.Create(admin.UserId, UserType.Administration, [Permissions.AccessManage]);
+
+        var newEmail = $"newadmin_{Guid.NewGuid():N}@voltscrm.local";
+        const string chosen = "Chosen!Password1";
+
+        var response = await PostAsync("/api/admin/access/admins", new
+        {
+            email = newEmail,
+            firstName = "New",
+            lastName = "Admin",
+            roleIds = Array.Empty<Guid>(),
+            isSuperAdmin = false,
+            password = chosen
+        }, token);
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var result = await ReadAsync<CreateAdminResultT>(response);
+        Assert.NotNull(result);
+        // Custom password is never echoed back.
+        Assert.Null(result!.TemporaryPassword);
+
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+        var created = await userManager.FindByEmailAsync(newEmail);
+        Assert.NotNull(created);
+        Assert.True(await userManager.CheckPasswordAsync(created!, chosen));
     }
 
     [Fact]
@@ -171,13 +206,13 @@ public class AdminCreationTests : IAsyncLifetime
         // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
-        var dto = await ReadAsync<AdminUserDtoT>(response);
-        Assert.NotNull(dto);
-        Assert.True(dto!.IsSuperAdmin);
+        var result = await ReadAsync<CreateAdminResultT>(response);
+        Assert.NotNull(result);
+        Assert.True(result!.Admin.IsSuperAdmin);
 
         // Verify database state
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var adminProfile = await db.AdministrationUsers.FirstOrDefaultAsync(a => a.Id == dto.Id, Ct);
+        var adminProfile = await db.AdministrationUsers.FirstOrDefaultAsync(a => a.Id == result.Admin.Id, Ct);
         Assert.NotNull(adminProfile);
         Assert.True(adminProfile!.IsSuperAdmin);
     }
@@ -295,9 +330,9 @@ public class AdminCreationTests : IAsyncLifetime
         // Assert
         Assert.Equal(HttpStatusCode.Created, response.StatusCode);
 
-        var dto = await ReadAsync<AdminUserDtoT>(response);
-        Assert.NotNull(dto);
-        Assert.Contains(admin.RoleId, dto!.RoleIds);
-        Assert.Contains(admin2.RoleId, dto.RoleIds);
+        var result = await ReadAsync<CreateAdminResultT>(response);
+        Assert.NotNull(result);
+        Assert.Contains(admin.RoleId, result!.Admin.RoleIds);
+        Assert.Contains(admin2.RoleId, result.Admin.RoleIds);
     }
 }

@@ -5,8 +5,12 @@ import { cn } from '@/lib/utils'
 import type { NavItem } from './types'
 
 export function Sidebar({ navItems, homeTo }: { navItems: NavItem[]; homeTo: string }) {
-  const { hasPermission } = useAuth()
-  const visible = navItems.filter((item) => !item.permission || hasPermission(item.permission))
+  const { hasPermission, user } = useAuth()
+  const visible = navItems.filter(
+    (item) =>
+      (!item.permission || hasPermission(item.permission)) &&
+      (!item.superAdmin || !!user?.isSuperAdmin),
+  )
 
   return (
     <aside className="hidden w-60 shrink-0 flex-col border-r bg-background md:flex">

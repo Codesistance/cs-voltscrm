@@ -91,8 +91,6 @@ public static class AgentEndpoints
         CreateAgentRequest req,
         UserManager<AppUser> userManager,
         AppDbContext db,
-        IEmailSender email,
-        IOptions<EmailOptions> emailOptions,
         CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(req.Email))
@@ -114,7 +112,12 @@ public static class AgentEndpoints
             MustChangePassword = true,
         };
 
-        var result = await userManager.CreateAsync(user, PasswordGenerator.GenerateTemporary());
+        // Password mode chosen before creation (no create-then-reset): a supplied value is set
+        // directly, otherwise the server generates a temporary one and returns it once.
+        var generated = string.IsNullOrWhiteSpace(req.Password);
+        var password = generated ? PasswordGenerator.GenerateTemporary() : req.Password!;
+
+        var result = await userManager.CreateAsync(user, password);
         if (!result.Succeeded)
             return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
                 title: string.Join("; ", result.Errors.Select(e => e.Description)));
@@ -125,12 +128,10 @@ public static class AgentEndpoints
         db.Agents.Add(agent);
         await db.SaveChangesAsync(ct);
 
-        await AccountInviteService.SendSetPasswordInviteAsync(userManager, email, emailOptions.Value, user);
-
         var dto = new AgentDto(agent.Id, user.Id, user.Email!, user.FirstName, user.LastName,
             user.PhoneNumber, agent.Location.ToDto(), agent.Territory, agent.IsActive);
 
-        return TypedResults.Created($"/api/agents/{agent.Id}", dto);
+        return TypedResults.Created($"/api/agents/{agent.Id}", new CreateAgentResult(dto, generated ? password : null));
     }
 
     private static async Task<IResult> UpdateAsync(
@@ -212,7 +213,15 @@ public sealed record AgentDto(
     LocationDto Location, string? Territory, bool IsActive);
 
 public sealed record CreateAgentRequest(
-    string Email, string FirstName, string LastName, string? Phone, LocationInput Location, string? Territory);
+    string Email, string FirstName, string LastName, string? Phone, LocationInput Location, string? Territory,
+    // Password mode chosen before creation: null/empty → the server generates a temporary password and
+    // returns it once; a supplied value is set directly. Either way the agent must change it at next login.
+    string? Password = null);
+
+public sealed record CreateAgentResult(
+    AgentDto Agent,
+    // The generated temporary password, returned once when Password was not supplied; null otherwise.
+    string? TemporaryPassword);
 
 public sealed record UpdateAgentRequest(
     string FirstName, string LastName, string? Phone, LocationInput Location, string? Territory);
