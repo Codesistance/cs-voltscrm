@@ -37,9 +37,17 @@ export interface CreateAdminRequest {
   lastName: string
   roleIds: string[]
   isSuperAdmin: boolean
+  /** Omit to have the server generate a temporary password (returned once); set to choose one. */
+  password?: string
 }
 
 export interface ResetPasswordResult {
+  temporaryPassword: string | null
+}
+
+export interface CreateAdminResult {
+  admin: AdminUserDto
+  /** Present only when the password was auto-generated; shown once so it can be handed over. */
   temporaryPassword: string | null
 }
 
@@ -50,7 +58,7 @@ export const accessApi = {
   updateRole: (id: string, body: SaveAdminRoleRequest) => put<void>(`/admin/access/roles/${id}`, body),
   deleteRole: (id: string) => del<void>(`/admin/access/roles/${id}`),
   admins: () => get<AdminUserDto[]>('/admin/access/admins'),
-  createAdmin: (body: CreateAdminRequest) => post<AdminUserDto>('/admin/access/admins', body),
+  createAdmin: (body: CreateAdminRequest) => post<CreateAdminResult>('/admin/access/admins', body),
   assignRoles: (id: string, roleIds: string[]) => put<void>(`/admin/access/admins/${id}/roles`, { roleIds }),
   resetPassword: (id: string, newPassword?: string) =>
     post<ResetPasswordResult>(`/admin/access/admins/${id}/reset-password`, { newPassword }),

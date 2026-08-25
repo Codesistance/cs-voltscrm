@@ -35,4 +35,6 @@ public sealed record AdminUserDtoT(
 
 public sealed record ResetPasswordResultDtoT(string? TemporaryPassword);
 
+public sealed record CreateAdminResultT(AdminUserDtoT Admin, string? TemporaryPassword);
+
 public sealed record PhoenixResetResultDtoT(string Email, string TemporaryPassword, bool Reactivated);

@@ -13,6 +13,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
+import { copyText } from '@/lib/clipboard'
 import { ApiError } from '@/shared/api/http'
 
 const MIN_PASSWORD_LENGTH = 8
@@ -73,9 +74,12 @@ export function ResetPasswordDialog({
 
   const copy = async () => {
     if (!revealed) return
-    await navigator.clipboard.writeText(revealed)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1600)
+    if (await copyText(revealed)) {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1600)
+    } else {
+      toast.error('Copy failed — select the text and copy it manually.')
+    }
   }
 
   const customValid = mode === 'generate' || password.length >= MIN_PASSWORD_LENGTH

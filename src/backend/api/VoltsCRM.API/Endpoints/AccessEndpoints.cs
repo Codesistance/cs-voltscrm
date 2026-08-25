@@ -171,8 +171,6 @@ public static class AccessEndpoints
         CreateAdminRequest request,
         UserManager<AppUser> userManager,
         AppDbContext db,
-        IEmailSender email,
-        IOptions<EmailOptions> emailOptions,
         ClaimsPrincipal principal,
         IAuditLogger audit,
         CancellationToken ct)
@@ -214,7 +212,13 @@ public static class AccessEndpoints
             MustChangePassword = true,
         };
 
-        var result = await userManager.CreateAsync(user, PasswordGenerator.GenerateTemporary());
+        // Password mode is chosen before creation (no create-then-reset): a supplied value is set
+        // directly, otherwise the server generates a temporary one and returns it once. Either way
+        // MustChangePassword forces a change at next login.
+        var generated = string.IsNullOrWhiteSpace(request.Password);
+        var password = generated ? PasswordGenerator.GenerateTemporary() : request.Password!;
+
+        var result = await userManager.CreateAsync(user, password);
         if (!result.Succeeded)
             return Results.Problem(statusCode: StatusCodes.Status400BadRequest,
                 title: string.Join("; ", result.Errors.Select(e => e.Description)));
@@ -227,20 +231,19 @@ public static class AccessEndpoints
         db.AdministrationUsers.Add(profile);
         await db.SaveChangesAsync(ct);
 
-        await AccountInviteService.SendSetPasswordInviteAsync(userManager, email, emailOptions.Value, user);
-
         await audit.LogAsync(new AuditEntry
         {
             Action = AuditActions.AdminCreate,
             TargetType = "admin",
             TargetId = user.Id,
             TargetLabel = user.Email,
-            Details = JsonSerializer.Serialize(new { isSuperAdmin = request.IsSuperAdmin, roleIds }),
+            Details = JsonSerializer.Serialize(new { isSuperAdmin = request.IsSuperAdmin, roleIds, passwordMode = generated ? "generated" : "custom" }),
         }, ct);
 
         var dto = new AdminUserDto(profile.Id, user.Id, user.Email!, user.FullName, profile.IsSuperAdmin,
             user.IsActive, roleIds);
-        return Results.Created($"/api/admin/access/admins/{profile.Id}", dto);
+        return Results.Created($"/api/admin/access/admins/{profile.Id}",
+            new CreateAdminResult(dto, generated ? password : null));
     }
 
     private static async Task<IResult> ResetAdminPasswordAsync(

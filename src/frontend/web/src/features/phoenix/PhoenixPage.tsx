@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { copyText } from '@/lib/clipboard'
 import { ApiError } from '@/shared/api/http'
 import { phoenixApi, type PhoenixResetResult } from './api/phoenixApi'
 
@@ -49,10 +50,9 @@ export function PhoenixPage() {
 
   const copyPassword = async () => {
     if (!result) return
-    try {
-      await navigator.clipboard.writeText(result.temporaryPassword)
+    if (await copyText(result.temporaryPassword)) {
       toast.success('Temporary password copied.')
-    } catch {
+    } else {
       toast.error('Copy failed — select and copy it manually.')
     }
   }
