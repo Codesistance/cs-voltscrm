@@ -7,11 +7,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ApiError } from '@/shared/api/http'
 import { ConfirmDialog } from '@/shared/components/ConfirmDialog'
 import { ErrorState } from '@/shared/components/ErrorState'
 import { LoadingState } from '@/shared/components/LoadingState'
 import { PageHeader } from '@/shared/components/PageHeader'
+import { PasswordRevealDialog } from '@/shared/components/PasswordRevealDialog'
 import { ResetPasswordDialog } from '@/shared/components/ResetPasswordDialog'
 import { LocationPicker } from '@/features/location/components/LocationPicker'
 import type { LocationInput } from '@/features/location/types'
@@ -32,6 +34,7 @@ export function AgentsPage() {
   const [editing, setEditing] = useState<Editing>(null)
   const [toDelete, setToDelete] = useState<Agent | null>(null)
   const [resetting, setResetting] = useState<Agent | null>(null)
+  const [createdPassword, setCreatedPassword] = useState<string | null>(null)
 
   const createMut = useCreateAgent()
   const editId = editing?.mode === 'edit' ? editing.agent.id : ''
@@ -136,8 +139,9 @@ export function AgentsPage() {
                     })
                     toast.success('Agent updated.')
                   } else {
-                    await createMut.mutateAsync(body)
-                    toast.success('Agent created — invite sent.')
+                    const result = await createMut.mutateAsync(body)
+                    toast.success('Agent created.')
+                    if (result.temporaryPassword) setCreatedPassword(result.temporaryPassword)
                   }
                   setEditing(null)
                 } catch (e) {
@@ -177,6 +181,14 @@ export function AgentsPage() {
           }
         }}
       />
+
+      <PasswordRevealDialog
+        open={!!createdPassword}
+        onOpenChange={(open) => !open && setCreatedPassword(null)}
+        password={createdPassword ?? ''}
+        title="Agent created"
+        description="Give this temporary password to the new agent — it won't be shown again. They'll be required to change it at next login."
+      />
     </div>
   )
 }
@@ -188,6 +200,7 @@ interface AgentFormValue {
   phone: string | null
   location: LocationInput
   territory: string | null
+  password?: string
 }
 
 const emptyLocation: LocationInput = {
@@ -212,9 +225,12 @@ function AgentForm({
   const [phone, setPhone] = useState(agent?.phone ?? '')
   const [location, setLocation] = useState<LocationInput>(agent?.location ?? emptyLocation)
   const [territory, setTerritory] = useState(agent?.territory ?? '')
+  const [passwordMode, setPasswordMode] = useState<'generate' | 'custom'>('generate')
+  const [password, setPassword] = useState('')
 
   const isEdit = !!agent
   const locationValid = location.address.city.trim() !== '' && location.address.country.trim() !== ''
+  const passwordValid = isEdit || passwordMode === 'generate' || password.length >= 8
 
   return (
     <form
@@ -228,6 +244,7 @@ function AgentForm({
           phone: phone.trim() || null,
           location,
           territory: territory.trim() || null,
+          password: !isEdit && passwordMode === 'custom' ? password : undefined,
         })
       }}
     >
@@ -264,15 +281,43 @@ function AgentForm({
         <Label htmlFor="agent-territory">Territory (optional)</Label>
         <Input id="agent-territory" value={territory} onChange={(e) => setTerritory(e.target.value)} />
       </div>
+      {!isEdit && (
+        <div className="space-y-2">
+          <Label>Password</Label>
+          <Tabs value={passwordMode} onValueChange={(v) => setPasswordMode(v as 'generate' | 'custom')}>
+            <TabsList className="w-full">
+              <TabsTrigger value="generate" className="flex-1">
+                Generate for me
+              </TabsTrigger>
+              <TabsTrigger value="custom" className="flex-1">
+                Set it myself
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+          {passwordMode === 'generate' ? (
+            <p className="text-xs text-muted-foreground">
+              A temporary password is generated and shown once after creation, so you can hand it over.
+            </p>
+          ) : (
+            <Input
+              type="text"
+              autoComplete="off"
+              placeholder="At least 8 characters"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          )}
+        </div>
+      )}
       <div className="flex justify-end gap-2">
         <Button type="button" variant="outline" onClick={onCancel} disabled={saving}>
           Cancel
         </Button>
         <Button
           type="submit"
-          disabled={saving || !email.trim() || !firstName.trim() || !lastName.trim() || !locationValid}
+          disabled={saving || !email.trim() || !firstName.trim() || !lastName.trim() || !locationValid || !passwordValid}
         >
-          {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create & invite'}
+          {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Create agent'}
         </Button>
       </div>
     </form>
