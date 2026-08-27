@@ -162,22 +162,24 @@ export function AdminsPanel() {
                         </Button>
                       )
                     )}
-                    <Button variant="outline" size="sm" onClick={() => startEdit(admin)}>
-                      Edit roles
-                    </Button>
+                    {!admin.isSuperAdmin && (
+                      <Button variant="outline" size="sm" onClick={() => startEdit(admin)}>
+                        Edit roles
+                      </Button>
+                    )}
                   </div>
                 )}
               </div>
               <CardDescription>{admin.email}</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {admin.isSuperAdmin && (
-                <p className="text-xs text-muted-foreground">
-                  Super admins always hold every permission, regardless of assigned roles.
+              {admin.isSuperAdmin ? (
+                // Roles don't apply to super admins (the flag grants everything), so we skip the
+                // roles UI entirely rather than showing a misleading "No roles assigned".
+                <p className="text-sm text-muted-foreground">
+                  Full access — holds every permission. Roles don't apply.
                 </p>
-              )}
-
-              {editing ? (
+              ) : editing ? (
                 <div className="space-y-3">
                   <div className="space-y-2">
                     {rolesQuery.data
