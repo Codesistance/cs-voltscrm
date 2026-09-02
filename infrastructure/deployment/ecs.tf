@@ -3,7 +3,7 @@ resource "aws_ecs_cluster" "main" {
 
   setting {
     name  = "containerInsights"
-    value = "enabled"
+    value = var.enable_container_insights ? "enabled" : "disabled"
   }
 }
 
@@ -123,12 +123,12 @@ resource "aws_iam_role_policy" "ecs_task_messaging" {
 
 resource "aws_cloudwatch_log_group" "api" {
   name              = "/ecs/${local.prefix}/api"
-  retention_in_days = 30
+  retention_in_days = var.log_retention_days
 }
 
 resource "aws_cloudwatch_log_group" "worker" {
   name              = "/ecs/${local.prefix}/worker"
-  retention_in_days = 30
+  retention_in_days = var.log_retention_days
 }
 
 # ── API task definition ───────────────────────────────────────────────────────

@@ -6,6 +6,9 @@ aws_region  = "eu-west-1"
 
 vpc_cidr = "10.0.0.0/16"
 
+# One shared NAT gateway instead of one per AZ — halves the ~$32/month/gateway standing cost.
+single_nat_gateway = true
+
 # ── Custom domain / TLS ───────────────────────────────────────────────────────
 # Single switch for the edge topology:
 #   false → no CloudFront (unblocks accounts not yet CloudFront-verified). The SPA is
@@ -29,21 +32,29 @@ api_image_tag    = "production"
 worker_image_tag = "production"
 
 # ── ECS sizing ────────────────────────────────────────────────────────────────
+# Dev sizing: one replica each, at the smallest Fargate shape (256 CPU / 512 MiB is the
+# floor). Deploys still roll safely — deployment_maximum_percent = 200 starts the
+# replacement task before draining the old one. Scale up before this carries real traffic.
 
-api_cpu           = 512
-api_memory        = 1024
-api_desired_count = 2
+api_cpu           = 256
+api_memory        = 512
+api_desired_count = 1
 
 worker_cpu           = 256
 worker_memory        = 512
 worker_desired_count = 1
 
 # ── RDS ───────────────────────────────────────────────────────────────────────
+# Dev sizing: smallest burstable class, 20 GiB (the gp2 minimum), one day of backups,
+# and destroyable without a final snapshot. Raise all four for anything holding real data.
 
-db_instance_class    = "db.t3.small"
-db_allocated_storage = 20
-db_name              = "voltscrm"
-db_username          = "voltscrm"
+db_instance_class        = "db.t3.micro"
+db_allocated_storage     = 20
+db_name                  = "voltscrm"
+db_username              = "voltscrm"
+db_backup_retention_days = 1
+db_deletion_protection   = false
+db_skip_final_snapshot   = true
 
 # ── API configuration ─────────────────────────────────────────────────────────
 # Replace with your actual frontend domain once DNS is configured.
@@ -68,8 +79,15 @@ cloudfront_price_class = "PriceClass_100"
 
 # ── ElastiCache Redis ─────────────────────────────────────────────────────────
 
+# Already the smallest node type; a single cluster means no standby replica to pay for.
 redis_node_type          = "cache.t3.micro"
 redis_num_cache_clusters = 1
+
+# ── Observability ─────────────────────────────────────────────────────────────
+# Short log retention and no Container Insights (it bills per custom metric).
+
+log_retention_days        = 7
+enable_container_insights = false
 
 # ── SES ───────────────────────────────────────────────────────────────────────
 # Verify the domain, then publish the TXT + DKIM CNAME records (terraform output) to DNS.

@@ -35,6 +35,8 @@ locals {
 
   az_count = 2
   azs      = slice(data.aws_availability_zones.available.names, 0, local.az_count)
+
+  nat_count = var.single_nat_gateway ? 1 : local.az_count
 }
 
 data "aws_availability_zones" "available" {

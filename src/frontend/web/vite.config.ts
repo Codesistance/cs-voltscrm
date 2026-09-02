@@ -33,5 +33,9 @@ export default defineConfig({
         secure: false,
       },
     },
+    // Docker bind-mounts (esp. from Windows/macOS hosts) often don't propagate native fs change
+    // events into the container, so chokidar's default watcher silently stops picking up edits.
+    // Fall back to polling only when actually running inside a container.
+    watch: fs.existsSync('/.dockerenv') ? { usePolling: true, interval: 1000 } : undefined,
   },
 })

@@ -22,6 +22,15 @@ variable "vpc_cidr" {
   default     = "10.0.0.0/16"
 }
 
+# A NAT gateway costs ~$32/month plus data processing, and the subnets still span two AZs
+# for the ALB and the RDS subnet group. One shared gateway halves that at the cost of the
+# second AZ losing egress if the gateway's AZ goes down — acceptable for a dev environment.
+variable "single_nat_gateway" {
+  description = "When true, route both private subnets through one NAT gateway instead of one per AZ. Set false for AZ-independent egress."
+  type        = bool
+  default     = true
+}
+
 # ── Container images ──────────────────────────────────────────────────────────
 
 # Stable moving tag: the backend deploy workflow pushes this tag and rolls the
@@ -100,6 +109,38 @@ variable "db_username" {
   description = "PostgreSQL master username"
   type        = string
   default     = "voltscrm"
+}
+
+variable "db_backup_retention_days" {
+  description = "Days of automated RDS backups to keep (0 disables them)"
+  type        = number
+  default     = 1
+}
+
+variable "db_deletion_protection" {
+  description = "Block `terraform destroy` from deleting the database. Turn on for anything holding real data."
+  type        = bool
+  default     = false
+}
+
+variable "db_skip_final_snapshot" {
+  description = "Skip the final snapshot when the instance is destroyed. Turn off for anything holding real data."
+  type        = bool
+  default     = true
+}
+
+# ── Observability ─────────────────────────────────────────────────────────────
+
+variable "log_retention_days" {
+  description = "CloudWatch retention for the ECS task log groups"
+  type        = number
+  default     = 7
+}
+
+variable "enable_container_insights" {
+  description = "ECS Container Insights. Off by default — it bills per custom metric and a dev cluster rarely reads them."
+  type        = bool
+  default     = false
 }
 
 # ── API configuration ─────────────────────────────────────────────────────────

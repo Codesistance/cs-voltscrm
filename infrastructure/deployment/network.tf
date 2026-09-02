@@ -19,12 +19,12 @@ resource "aws_subnet" "public" {
 }
 
 resource "aws_eip" "nat" {
-  count  = local.az_count
+  count  = local.nat_count
   domain = "vpc"
 }
 
 resource "aws_nat_gateway" "main" {
-  count         = local.az_count
+  count         = local.nat_count
   allocation_id = aws_eip.nat[count.index].id
   subnet_id     = aws_subnet.public[count.index].id
   depends_on    = [aws_internet_gateway.main]
@@ -61,8 +61,9 @@ resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
 
   route {
-    cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main[count.index].id
+    cidr_block = "0.0.0.0/0"
+    # With a single shared gateway every private subnet routes through index 0.
+    nat_gateway_id = aws_nat_gateway.main[min(count.index, local.nat_count - 1)].id
   }
 }
 

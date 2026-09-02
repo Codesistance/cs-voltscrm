@@ -18,10 +18,10 @@ resource "aws_db_instance" "main" {
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.rds.id]
 
-  backup_retention_period   = 7
-  deletion_protection       = true
-  skip_final_snapshot       = false
-  final_snapshot_identifier = "${local.prefix}-final"
+  backup_retention_period   = var.db_backup_retention_days
+  deletion_protection       = var.db_deletion_protection
+  skip_final_snapshot       = var.db_skip_final_snapshot
+  final_snapshot_identifier = var.db_skip_final_snapshot ? null : "${local.prefix}-final"
 
   # Password changes (e.g. the initial random_password rollout below) must take effect
   # immediately rather than waiting for the next maintenance window, or the app stays broken.
